@@ -11,6 +11,7 @@ import { mockDocumentService } from './mock/documents';
 import { mockAppLaunchpadService } from './mock/apps';
 import { mockNewsService } from './mock/news';
 import { mockActivityService } from './mock/activity';
+import { mockBacklogIntelligenceService } from './mock/backlogIntelligence';
 import { restTicketService } from './rest/tickets';
 import { restActionService } from './rest/actions';
 import { persistentFormService } from './rest/forms';
@@ -36,5 +37,6 @@ export function buildServices(): Services {
     news: mockNewsService,
     actions: restActionService,
     activity: mockActivityService,
+    backlogIntelligence: mockBacklogIntelligenceService,
   });
 }

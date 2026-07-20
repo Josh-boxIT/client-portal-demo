@@ -3,17 +3,19 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Ticket, Users, HardDrive, Key,
   Map, PresentationIcon, DollarSign, ShieldAlert, BarChart3,
-  FileText, ClipboardList, Grid3X3, Newspaper, Phone,
+  FileText, ClipboardList, Grid3X3, Newspaper, Phone, ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session';
 import { useTenantStore } from '@/theme/tenantStore';
+import { useAuthStore } from '@/store/auth';
 import { Separator } from '@/components/ui/separator';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  staffOnly?: boolean;
 }
 
 interface NavGroup {
@@ -46,6 +48,12 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'INSIGHTS',
     items: [
       { label: 'Reports & metrics', href: '/reports', icon: <BarChart3 className="h-4 w-4" /> },
+      {
+        label: 'Queue Attention',
+        href: '/queue-attention',
+        icon: <ListChecks className="h-4 w-4" />,
+        staffOnly: true,
+      },
     ],
   },
   {
@@ -66,6 +74,7 @@ interface SidebarProps {
 
 export function Sidebar({ className, onClose }: SidebarProps) {
   const { activeTenantId } = useSessionStore();
+  const { identity } = useAuthStore();
   const { getTenant } = useTenantStore();
   const navigate = useNavigate();
 
@@ -75,6 +84,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
   const gradient = tenant?.sidebarGradient ?? 'linear-gradient(180deg, #312e81 0%, #1e1b4b 100%)';
   const phone = tenant?.supportPhone ?? '';
   const hours = tenant?.supportHours ?? '';
+  const isStaff = identity?.role === 'admin' || identity?.role === 'editor';
 
   function handleNavClick() {
     if (onClose) onClose();
@@ -106,7 +116,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
               {group.label}
             </div>
             <ul className="space-y-0.5">
-              {group.items.map((item) => (
+              {group.items.filter((item) => !item.staffOnly || isStaff).map((item) => (
                 <li key={item.href}>
                   <NavLink
                     to={item.href}
