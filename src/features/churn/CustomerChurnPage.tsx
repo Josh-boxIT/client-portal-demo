@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   Inbox,
+  ListChecks,
   ReceiptText,
   Repeat2,
   Sparkles,
@@ -85,17 +86,15 @@ export function CustomerChurnPage() {
       <PageHeader
         title={`Customer Churn: ${customer.name}`}
         subtitle="AI-assisted account retention risk assessment"
-        actions={
-          <>
-            <Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/customer-churn">
-                <ArrowLeft aria-hidden="true" />
-                All customers
-              </Link>
-            </Button>
-          </>
+        leading={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/customer-churn">
+              <ArrowLeft aria-hidden="true" />
+              Return
+            </Link>
+          </Button>
         }
+        actions={<Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -116,9 +115,32 @@ export function CustomerChurnPage() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-base leading-7 text-foreground/90">{assessment.narrative}</p>
-            <div className="mt-5 rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+          <CardContent className="space-y-6">
+            <section aria-labelledby="assessment-heading">
+              <h3 id="assessment-heading" className="text-sm font-semibold">
+                Assessment
+              </h3>
+              <p className="mt-2 text-base leading-7 text-foreground/90">
+                {assessment.assessment}
+              </p>
+            </section>
+
+            <section
+              className="rounded-lg border border-primary/20 bg-primary/5 p-4"
+              aria-labelledby="suggested-actions-heading"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <ListChecks className="h-4 w-4" aria-hidden="true" />
+                <h3 id="suggested-actions-heading" className="text-sm font-semibold">
+                  Suggested actions
+                </h3>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-foreground/90">
+                {assessment.suggestedActions}
+              </p>
+            </section>
+
+            <div className="rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
               AI-generated assessment. Review source data and account context before taking action.
             </div>
           </CardContent>

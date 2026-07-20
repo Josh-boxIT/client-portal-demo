@@ -51,6 +51,8 @@ describe('customer churn data', () => {
     expect(getRiskTone(churnAssessments.cedarvine.score).label).toBe('Moderate risk');
     expect(formatAssessmentDate(churnAssessments.brightwater.assessedAt)).toBe('Jul 20, 2026');
     expect(churnAssessments.brightwater).toMatchObject({
+      assessment: expect.stringContaining('high risk of churn'),
+      suggestedActions: expect.stringContaining('Proactively contact'),
       accountAgeYears: 8.4,
       creditLimitUsagePercent: 74,
       daysPastDue: 18,
