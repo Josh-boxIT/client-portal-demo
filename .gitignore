@@ -1,10 +1,15 @@
 # Dependencies
 node_modules/
+pnpm-lock.yaml
+pnpm-workspace.yaml
 
 # Build outputs
 dist/
 dist-ssr/
 build/
+
+# Generated presentation artifacts
+outputs/
 
 # Environment variables
 .env

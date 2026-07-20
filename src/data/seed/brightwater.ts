@@ -1,7 +1,7 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
   RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
-  FormDef, AppTile, NewsItem, ActivityItem, TicketMessage, TicketAttachment,
+  FormDef, NewsItem, ActivityItem, TicketMessage, TicketAttachment,
 } from '@/services/types';
 
 // Tiny 1x1 solid-color PNG data URIs used to demo ticket image rendering in
@@ -299,19 +299,6 @@ const forms: FormDef[] = [
   },
 ];
 
-const apps: AppTile[] = [
-  { id: 'bw-app1', tenantId: T, name: 'Outlook', category: 'Productivity', description: 'Email and calendar', color: '#0078d4', icon: 'Mail' },
-  { id: 'bw-app2', tenantId: T, name: 'Microsoft Teams', category: 'Communication', description: 'Chat, calls, and meetings', color: '#6264a7', icon: 'MessageSquare' },
-  { id: 'bw-app3', tenantId: T, name: 'SharePoint', category: 'Productivity', description: 'Team sites and document management', color: '#0078d4', icon: 'FolderOpen' },
-  { id: 'bw-app4', tenantId: T, name: 'Power BI', category: 'Analytics', description: 'Business intelligence and reporting', color: '#f2c811', icon: 'BarChart3' },
-  { id: 'bw-app5', tenantId: T, name: 'OneDrive', category: 'Storage', description: 'Personal cloud storage', color: '#0078d4', icon: 'Cloud' },
-  { id: 'bw-app6', tenantId: T, name: 'Transport Management System', category: 'Operations', description: 'Fleet and route management', color: '#4f46e5', icon: 'Truck' },
-  { id: 'bw-app7', tenantId: T, name: 'Salesforce', category: 'CRM', description: 'Customer relationship management', color: '#00a1e0', icon: 'Users' },
-  { id: 'bw-app8', tenantId: T, name: 'Adobe Acrobat', category: 'Productivity', description: 'PDF creation and editing', color: '#ff0000', icon: 'FileText' },
-  { id: 'bw-app9', tenantId: T, name: 'Azure Portal', category: 'IT Admin', description: 'Microsoft Azure management', color: '#0089d6', icon: 'Server' },
-  { id: 'bw-app10', tenantId: T, name: 'Freshdesk', category: 'Support', description: 'Customer support ticketing', color: '#25c16f', icon: 'Headphones' },
-];
-
 const news: NewsItem[] = [
   { id: 'bw-n1', tenantId: T, title: 'MFA enforcement is now live for all users', category: 'Security', publishedAt: '2026-06-10T09:00:00Z', author: 'Sarah Okonkwo', excerpt: 'As of June 10, all users must complete MFA to sign in. Here is what you need to know.', body: '# MFA Enforcement Now Live\n\nAs of today, all Brightwater Logistics user accounts require multi-factor authentication.\n\n## What you need to do\n1. Install Microsoft Authenticator on your phone\n2. Go to aka.ms/mfasetup\n3. Follow the prompts to register your device\n\n## Need help?\nContact IT or use the "Reset MFA" action in the portal.', pinned: true },
   { id: 'bw-n2', tenantId: T, title: 'Planned maintenance: June 22 network upgrade', category: 'Maintenance', publishedAt: '2026-06-15T08:00:00Z', author: 'Raj Patel', excerpt: 'There will be a brief network outage on June 22 from 11pm–2am for firewall firmware updates.', body: '# Planned Network Maintenance\n\n**Date:** June 22, 2026\n**Time:** 11:00 PM – 2:00 AM\n\nThe network team will be performing firewall firmware upgrades. Internet and VPN connectivity will be interrupted during this window.\n\nPlease save your work and disconnect before 11pm.' },
@@ -341,7 +328,6 @@ export const brightwaterSeed: TenantSeed = {
   metricSeries,
   documents,
   forms,
-  apps,
   news,
   activity,
 };

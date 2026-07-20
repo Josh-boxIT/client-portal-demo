@@ -1,4 +1,12 @@
-import type { TicketService, Page, ListParams, Ticket, CreateTicketInput } from '../types';
+import type {
+  TicketService,
+  Page,
+  ListParams,
+  Ticket,
+  CreateTicketInput,
+  CreateTicketReplyInput,
+  UpdateTicketStatusInput,
+} from '../types';
 import { rest } from './client';
 
 /** Seeded tickets plus SQLite-persisted demo tickets. */
@@ -11,5 +19,11 @@ export const restTicketService: TicketService = {
   },
   create(tenantId: string, input: CreateTicketInput): Promise<Ticket> {
     return rest.create<Ticket>(tenantId, 'tickets', input);
+  },
+  updateStatus(tenantId: string, id: string, input: UpdateTicketStatusInput): Promise<Ticket> {
+    return rest.updatePath<Ticket>(tenantId, `tickets/${encodeURIComponent(id)}/status`, input);
+  },
+  reply(tenantId: string, id: string, input: CreateTicketReplyInput): Promise<Ticket> {
+    return rest.createPath<Ticket>(tenantId, `tickets/${encodeURIComponent(id)}/replies`, input);
   },
 };
