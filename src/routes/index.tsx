@@ -19,6 +19,7 @@ import { RoadmapsPage } from '@/features/roadmaps/RoadmapsPage';
 import { QBRsPage } from '@/features/qbrs/QBRsPage';
 import { BudgetPage } from '@/features/budget/BudgetPage';
 import { RiskPage } from '@/features/risk/RiskPage';
+import { CustomerChurnPage } from '@/features/churn/CustomerChurnPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { DocumentsPage } from '@/features/documents/DocumentsPage';
 import { DocumentDetailPage } from '@/features/documents/DocumentDetailPage';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'qbrs', element: <QBRsPage /> },
       { path: 'budget', element: <BudgetPage /> },
       { path: 'risk', element: <RiskPage /> },
+      { path: 'customer-churn', element: <CustomerChurnPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
