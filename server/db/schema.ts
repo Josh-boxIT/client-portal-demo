@@ -1,6 +1,13 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import type { ActionStep, ActionTicketConfig, FormSubmission, Ticket } from '@/services/types';
+import type {
+  ActionStep,
+  ActionTicketConfig,
+  FormSubmission,
+  Ticket,
+  TicketMessage,
+  TicketStatus,
+} from '@/services/types';
 
 export const now = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
 
@@ -90,6 +97,19 @@ export const demoTickets = sqliteTable('demo_tickets', {
   createdAt: text('created_at').notNull().default(now),
 }, (table) => ({
   tenantIndex: index('demo_tickets_tenant_idx').on(table.tenantId),
+}));
+
+/** Mutable fields layered over canonical seeded tickets (and demo-created tickets). */
+export const demoTicketMutations = sqliteTable('demo_ticket_mutations', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  ticketId: text('ticket_id').notNull(),
+  status: text('status').$type<TicketStatus>(),
+  replies: text('replies', { mode: 'json' }).$type<TicketMessage[]>().notNull(),
+  updatedAt: text('updated_at').notNull().default(now),
+}, (table) => ({
+  tenantTicketUnique: uniqueIndex('demo_ticket_mutations_tenant_ticket_uq').on(table.tenantId, table.ticketId),
+  tenantIndex: index('demo_ticket_mutations_tenant_idx').on(table.tenantId),
 }));
 
 export const formSubmissions = sqliteTable('form_submissions', {

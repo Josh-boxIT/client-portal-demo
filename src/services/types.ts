@@ -278,6 +278,14 @@ export interface CreateTicketInput {
   requesterId: string;
 }
 
+export interface UpdateTicketStatusInput {
+  status: TicketStatus;
+}
+
+export interface CreateTicketReplyInput {
+  body: string;
+}
+
 // ─── Asset ────────────────────────────────────────────────────────────────────
 
 export type AssetCategory = 'hardware' | 'software';
@@ -544,6 +552,8 @@ export interface TicketService {
   list(tenantId: string, params?: ListParams): Promise<Page<Ticket>>;
   get(tenantId: string, id: string): Promise<Ticket | null>;
   create(tenantId: string, input: CreateTicketInput): Promise<Ticket>;
+  updateStatus(tenantId: string, id: string, input: UpdateTicketStatusInput): Promise<Ticket>;
+  reply(tenantId: string, id: string, input: CreateTicketReplyInput): Promise<Ticket>;
 }
 
 export interface PeopleService {

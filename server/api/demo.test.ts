@@ -59,6 +59,51 @@ describe('sample-only demo API', () => {
     expect(fetched.json().subject).toBe('Demo persistence');
   });
 
+  it('persists ticket status changes and client replies for seeded tickets', async () => {
+    const viewer = await login('marcus.thiele@brightwaterlogistics.com');
+    const headers = {
+      'x-tenant-id': 'brightwater',
+      authorization: `Bearer ${viewer.token}`,
+    };
+
+    const status = await app.inject({
+      method: 'PATCH',
+      url: '/api/tickets/bw-t1/status',
+      headers,
+      payload: { status: 'resolved' },
+    });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({ status: 'resolved', isClosed: false });
+
+    const reply = await app.inject({
+      method: 'POST',
+      url: '/api/tickets/bw-t1/replies',
+      headers,
+      payload: { body: '  The laptop is running normally now.  ' },
+    });
+    expect(reply.statusCode).toBe(201);
+    expect(reply.json().messages.at(-1)).toMatchObject({
+      author: 'Marcus Thiele',
+      authorType: 'requester',
+      body: 'The laptop is running normally now.',
+    });
+
+    const fetched = await app.inject({ method: 'GET', url: '/api/tickets/bw-t1', headers });
+    expect(fetched.json().status).toBe('resolved');
+    expect(fetched.json().messages.at(-1).body).toBe('The laptop is running normally now.');
+
+    const listed = await app.inject({ method: 'GET', url: '/api/tickets?pageSize=100', headers });
+    expect(listed.json().data.find((ticket: { id: string }) => ticket.id === 'bw-t1').status).toBe('resolved');
+
+    const wrongTenant = await app.inject({
+      method: 'PATCH',
+      url: '/api/tickets/bw-t1/status',
+      headers: { ...headers, 'x-tenant-id': 'northwind' },
+      payload: { status: 'closed' },
+    });
+    expect(wrongTenant.statusCode).toBe(404);
+  });
+
   it('persists and scopes form submissions by tenant and persona', async () => {
     const form = getSeed('brightwater').forms[0];
     const created = await app.inject({
