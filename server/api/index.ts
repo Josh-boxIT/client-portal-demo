@@ -56,6 +56,30 @@ function publicTicket(ticket: Ticket, staff: boolean): Ticket {
   };
 }
 
+/**
+ * Client users may only work with tickets they requested. Client admins and
+ * boxIT staff retain tenant-wide ticket access. A null scope preserves the
+ * existing behavior for routes called without an authenticated portal user.
+ */
+function ticketRequesterScope(req: FastifyRequest, tenantId: string): string | null {
+  if (!req.adminIdentity || isBoxItStaff(req.adminIdentity)) return null;
+
+  const seed = getSeed(tenantId);
+  const persona = seed.personas.find(
+    (candidate) => candidate.email.toLowerCase() === req.adminIdentity!.email.toLowerCase(),
+  );
+  if (persona?.role !== 'client-user') return null;
+
+  const person = seed.people.find(
+    (candidate) => candidate.email.toLowerCase() === persona.email.toLowerCase(),
+  );
+  return person?.id ?? persona.id;
+}
+
+function canAccessTicket(ticket: Ticket, requesterScope: string | null): boolean {
+  return requesterScope === null || ticket.requesterId === requesterScope;
+}
+
 function applyTicketMutation(ticket: Ticket, mutation?: DemoTicketMutation): Ticket {
   if (!mutation) return ticket;
   const status = mutation.status ?? ticket.status;
@@ -103,12 +127,14 @@ export function registerApiRoutes(app: FastifyInstance): void {
 
   app.get('/api/tickets', async (req) => {
     const tenantId = tenantFrom(req);
+    const requesterScope = ticketRequesterScope(req, tenantId);
     const [created, mutations] = await Promise.all([
       demoTicketRepo(app.db).list(tenantId),
       demoTicketMutationRepo(app.db).list(tenantId),
     ]);
     const tickets = [...created, ...getSeed(tenantId).tickets]
       .map((ticket) => applyTicketMutation(ticket, mutations.get(ticket.id)))
+      .filter((ticket) => canAccessTicket(ticket, requesterScope))
       .map((ticket) => publicTicket(ticket, isBoxItStaff(req.adminIdentity)));
     return paginateArray(tickets as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {}));
   });
@@ -116,7 +142,9 @@ export function registerApiRoutes(app: FastifyInstance): void {
     const tenantId = tenantFrom(req);
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
-    if (!ticket) return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) {
+      return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
+    }
     const mutation = await demoTicketMutationRepo(app.db).get(tenantId, id);
     return publicTicket(applyTicketMutation(ticket, mutation), isBoxItStaff(req.adminIdentity));
   });
@@ -126,14 +154,18 @@ export function registerApiRoutes(app: FastifyInstance): void {
     if (!input?.subject?.trim() || !input.body?.trim() || !input.requesterId || !input.category || !input.priority) {
       throw new BadRequestError('subject, body, requesterId, category, and priority are required');
     }
-    const ticket = await demoTicketRepo(app.db).create(newTicket(tenantId, input));
+    const requesterScope = ticketRequesterScope(req, tenantId);
+    const ticket = await demoTicketRepo(app.db).create(newTicket(
+      tenantId,
+      requesterScope === null ? input : { ...input, requesterId: requesterScope },
+    ));
     return reply.status(201).send(ticket);
   });
   app.patch('/api/tickets/:id/status', async (req) => {
     const tenantId = tenantFrom(req);
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
-    if (!ticket) throw new NotFoundError('Ticket not found');
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');
 
     const input = req.body as UpdateTicketStatusInput;
     const validStatuses: TicketStatus[] = ['open', 'in-progress', 'waiting', 'resolved', 'closed'];
@@ -146,7 +178,7 @@ export function registerApiRoutes(app: FastifyInstance): void {
     const tenantId = tenantFrom(req);
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
-    if (!ticket) throw new NotFoundError('Ticket not found');
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');
 
     const input = req.body as CreateTicketReplyInput;
     const body = input?.body?.trim();
