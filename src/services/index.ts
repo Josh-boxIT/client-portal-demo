@@ -13,6 +13,7 @@ import { mockActivityService } from './mock/activity';
 import { mockBacklogIntelligenceService } from './mock/backlogIntelligence';
 import { restTicketService } from './rest/tickets';
 import { restActionService } from './rest/actions';
+import { restAssistantService } from './rest/assistant';
 import { persistentFormService } from './rest/forms';
 import { demoMetricsService } from './demoMetrics';
 import { installDrilldownCache } from './cache/drilldownCache';
@@ -35,6 +36,7 @@ export function buildServices(): Services {
     news: mockNewsService,
     actions: restActionService,
     activity: mockActivityService,
+    assistant: restAssistantService,
     backlogIntelligence: mockBacklogIntelligenceService,
   });
 }

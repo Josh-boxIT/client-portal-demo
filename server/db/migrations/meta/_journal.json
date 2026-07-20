@@ -15,6 +15,13 @@
       "when": 1784566012179,
       "tag": "0001_shallow_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784573526485,
+      "tag": "0002_colorful_nehzno",
+      "breakpoints": true
     }
   ]
 }

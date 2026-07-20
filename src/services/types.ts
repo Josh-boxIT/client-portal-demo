@@ -733,6 +733,54 @@ export interface ActivityService {
   list(tenantId: string, params?: ListParams): Promise<Page<ActivityItem>>;
 }
 
+// ─── Permission-aware assistant ───────────────────────────────────────
+
+export interface AssistantCitation {
+  sourceId: string;
+  recordType: string;
+  recordId: string;
+  title: string;
+  href: string;
+}
+
+export interface AssistantConversation {
+  id: string;
+  tenantId: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  citations: AssistantCitation[];
+  createdAt: string;
+}
+
+export type AssistantStreamEvent =
+  | { type: 'message.delta'; delta: string }
+  | { type: 'message.completed'; message: AssistantMessage }
+  | { type: 'error'; message: string; retryable: boolean };
+
+export interface AssistantService {
+  status(tenantId: string): Promise<{ enabled: boolean }>;
+  listConversations(tenantId: string): Promise<AssistantConversation[]>;
+  createConversation(tenantId: string): Promise<AssistantConversation>;
+  listMessages(tenantId: string, conversationId: string): Promise<AssistantMessage[]>;
+  deleteConversation(tenantId: string, conversationId: string): Promise<void>;
+  sendMessage(
+    tenantId: string,
+    conversationId: string,
+    input: { content: string; requestId: string; currentPath?: string },
+    onEvent: (event: AssistantStreamEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<void>;
+}
+
 export interface BacklogIntelligenceService {
   getSnapshot(): Promise<BacklogIntelligenceSnapshot>;
 }
@@ -794,6 +842,7 @@ export interface Services {
   news: NewsService;
   actions: ActionService;
   activity: ActivityService;
+  assistant: AssistantService;
   backlogIntelligence: BacklogIntelligenceService;
   prefetch: PrefetchController;
 }

@@ -2,7 +2,7 @@
 
 ## Runtime shape
 
-The project is a React SPA plus a Fastify API. It is permanently sample-only and has no vendor connectors or external identity provider.
+The project is a React SPA plus a Fastify API. It is permanently sample-only and has no vendor connectors or external identity provider. OpenAI is the only permitted live service and is used solely by the optional portal assistant.
 
 - `src/data/seed/` is the canonical source for immutable portal content.
 - `src/services/mock/` provides async typed access to immutable content.
@@ -11,7 +11,7 @@ The project is a React SPA plus a Fastify API. It is permanently sample-only and
 
 ## Persistence
 
-The SQLite schema contains `app_meta`, `tenants`, `admin_users`, `admin_user_client_access`, `action_defs`, `audit_log`, `demo_tickets`, and `form_submissions`.
+The SQLite schema contains the portal configuration and mutable demo tables plus user- and tenant-scoped assistant conversations and messages. OpenAI responses are not the source of conversation persistence.
 
 Migrations run at backend startup. A transactional versioned seed runs only when `app_meta.demo_seed_version` is absent, so later admin edits and deletions are preserved. Tests use a fresh `:memory:` database.
 
@@ -33,8 +33,11 @@ The local demo provider resolves seeded users by email and issues in-memory bear
 - `GET /api/actions`, `GET /api/actions/:key`
 - `POST /api/forms/:formId/submissions`, `GET /api/form-submissions`
 - `/api/admin/clients`, `/api/admin/users`, `/api/admin/action-defs`
+- `/api/assistant/status`, `/api/assistant/conversations`, and conversation message/history routes
 
 All portal data requests are tenant-scoped with `x-tenant-id`. Components access data through the interfaces in `src/services/types.ts` and `useServices()`.
+
+Assistant routes additionally require a valid bearer token. The server resolves tenant grants and the matching client persona before exposing read-only search/list/get tools to the model. Client users cannot retrieve budget or QBR data, see other requesters' tickets or form submissions, or receive internal ticket content.
 
 ## Demo invariants
 

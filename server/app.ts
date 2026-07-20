@@ -9,11 +9,14 @@ import { registerAuthRoutes } from './auth/routes';
 import { registerAdminRoutes } from './admin/routes';
 import { registerApiRoutes } from './api';
 import { loadEnv, type ServerEnv } from './config/env';
+import { OpenAIAssistantProvider, type AssistantModelProvider } from './assistant/provider';
+import { registerAssistantRoutes } from './assistant/routes';
 
 export interface BuildAppOptions {
   env?: ServerEnv;
   logger?: boolean;
   db?: AppDb;
+  assistantProvider?: AssistantModelProvider | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -36,6 +39,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   registerAuthRoutes(app, { authProvider, db });
   registerAdminRoutes(app, configStore);
   registerApiRoutes(app);
+  const assistantProvider = Object.prototype.hasOwnProperty.call(options, 'assistantProvider')
+    ? options.assistantProvider ?? null
+    : env.openAiApiKey
+      ? new OpenAIAssistantProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
+      : null;
+  registerAssistantRoutes(app, { provider: assistantProvider });
 
   if (opened) app.addHook('onClose', async () => opened.raw.close());
   return app;

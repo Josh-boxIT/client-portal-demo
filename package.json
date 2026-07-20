@@ -3,7 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
+    "runtime:check": "node scripts/check-node-runtime.mjs",
+    "preinstall": "node scripts/check-node-runtime.mjs",
+    "predev": "node scripts/check-node-runtime.mjs",
+    "preserver": "node scripts/check-node-runtime.mjs",
+    "pretest": "node scripts/check-node-runtime.mjs",
+    "prebuild": "node scripts/check-node-runtime.mjs",
+    "predemo": "node scripts/check-node-runtime.mjs",
+    "predb:generate": "node scripts/check-node-runtime.mjs",
+    "predb:migrate": "node scripts/check-node-runtime.mjs",
     "dev": "concurrently -n web,api -c blue,green \"npm:dev:web\" \"npm:dev:server\"",
     "dev:web": "vite",
     "dev:server": "tsx watch --tsconfig server/tsconfig.json server/index.ts",
@@ -42,6 +54,7 @@
     "drizzle-orm": "^0.45.2",
     "fastify": "^4.29.1",
     "lucide-react": "^0.468.0",
+    "openai": "^6.48.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",

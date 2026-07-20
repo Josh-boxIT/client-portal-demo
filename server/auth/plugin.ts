@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AdminAuthProvider } from '../admin/auth/provider';
 
 const ADMIN_PREFIX = '/api/admin';
+const ASSISTANT_PREFIX = '/api/assistant';
 const ME_ROUTE = '/api/auth/me';
 const LOGOUT_ROUTE = '/api/auth/logout';
 
@@ -20,6 +21,8 @@ export function registerSessionAuth(app: FastifyInstance, provider: AdminAuthPro
     const guarded =
       urlPath === ADMIN_PREFIX ||
       urlPath.startsWith(`${ADMIN_PREFIX}/`) ||
+      urlPath === ASSISTANT_PREFIX ||
+      urlPath.startsWith(`${ASSISTANT_PREFIX}/`) ||
       urlPath === ME_ROUTE ||
       urlPath === LOGOUT_ROUTE;
 

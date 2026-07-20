@@ -1,0 +1,222 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import type { FastifyInstance } from 'fastify';
+import type { DbClient } from '../db/client';
+import { openTestDb } from '../db/test-db';
+import { buildApp } from '../app';
+import type {
+  AssistantModelInput,
+  AssistantModelProvider,
+  AssistantModelResult,
+} from './provider';
+import type { PortalRecord } from './portal-data';
+
+const openApps: Array<{ app: FastifyInstance; raw: DbClient }> = [];
+
+afterEach(async () => {
+  for (const opened of openApps.splice(0)) {
+    await opened.app.close();
+    opened.raw.close();
+  }
+});
+
+async function makeApp(provider: AssistantModelProvider | null): Promise<FastifyInstance> {
+  const opened = openTestDb();
+  const app = await buildApp({ db: opened.db, logger: false, assistantProvider: provider });
+  openApps.push({ app, raw: opened.raw });
+  return app;
+}
+
+async function login(app: FastifyInstance, email: string): Promise<string> {
+  const response = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email } });
+  expect(response.statusCode).toBe(200);
+  return response.json().token as string;
+}
+
+function authHeaders(token: string, tenantId = 'brightwater') {
+  return { authorization: `Bearer ${token}`, 'x-tenant-id': tenantId };
+}
+
+function sseEvents(responseBody: string): Array<Record<string, unknown>> {
+  return responseBody.replace(/\r\n/g, '\n').split('\n\n').flatMap((block) => {
+    const data = block.split('\n').find((line) => line.startsWith('data: '));
+    return data ? [JSON.parse(data.slice(6)) as Record<string, unknown>] : [];
+  });
+}
+
+class CitationProvider implements AssistantModelProvider {
+  calls = 0;
+
+  async generate(input: AssistantModelInput): Promise<AssistantModelResult> {
+    this.calls += 1;
+    const records = await input.executeTool('search_portal', {
+      query: 'GlobalProtect', domains: ['documents'], limit: 10,
+    });
+    return {
+      answer: 'The portal includes a VPN setup guide.',
+      sourceIds: records.slice(0, 1).map((record) => record.sourceId),
+      accessedRecords: records,
+    };
+  }
+}
+
+class PermissionCaptureProvider implements AssistantModelProvider {
+  captured: Record<string, PortalRecord[]> = {};
+
+  async generate(input: AssistantModelInput): Promise<AssistantModelResult> {
+    for (const domain of ['budgets', 'qbrs', 'tickets', 'form-submissions']) {
+      this.captured[domain] = await input.executeTool('list_portal_records', { domain, limit: 50 });
+    }
+    const record = this.captured.tickets[0];
+    return {
+      answer: record ? 'I found your ticket.' : "I couldn't find that in the portal data available to you.",
+      sourceIds: record ? [record.sourceId] : [],
+      accessedRecords: Object.values(this.captured).flat(),
+    };
+  }
+}
+
+describe('permission-aware assistant API', () => {
+  it('requires authentication and reports disabled configuration without a key', async () => {
+    const app = await makeApp(null);
+    const unauthenticated = await app.inject({
+      method: 'GET', url: '/api/assistant/status', headers: { 'x-tenant-id': 'brightwater' },
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const status = await app.inject({ method: 'GET', url: '/api/assistant/status', headers: authHeaders(token) });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toEqual({ enabled: false });
+  });
+
+  it('persists grounded turns, titles conversations, and replays idempotent requests', async () => {
+    const provider = new CitationProvider();
+    const app = await makeApp(provider);
+    const token = await login(app, 'sarah.okonkwo@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    expect(created.statusCode).toBe(201);
+    const conversationId = created.json().id as string;
+    const payload = {
+      content: 'How do I configure the VPN?',
+      requestId: 'request-vpn-1',
+      currentPath: '/documents',
+    };
+
+    const first = await app.inject({
+      method: 'POST', url: `/api/assistant/conversations/${conversationId}/messages`, headers, payload,
+    });
+    expect(first.statusCode).toBe(200);
+    const completed = sseEvents(first.body).find((event) => event.type === 'message.completed');
+    expect(completed).toBeDefined();
+    expect(completed?.message).toMatchObject({
+      role: 'assistant',
+      citations: [{ recordType: 'documents', href: '/documents/bw-doc2' }],
+    });
+
+    const replay = await app.inject({
+      method: 'POST', url: `/api/assistant/conversations/${conversationId}/messages`, headers, payload,
+    });
+    expect(sseEvents(replay.body).some((event) => event.type === 'message.completed')).toBe(true);
+    expect(provider.calls).toBe(1);
+
+    const messages = await app.inject({
+      method: 'GET', url: `/api/assistant/conversations/${conversationId}/messages`, headers,
+    });
+    expect(messages.json()).toHaveLength(2);
+    const conversations = await app.inject({ method: 'GET', url: '/api/assistant/conversations', headers });
+    expect(conversations.json()[0].title).toBe('How do I configure the VPN?');
+  });
+
+  it('keeps conversations private across users and tenant grants', async () => {
+    const app = await makeApp(new CitationProvider());
+    const sarah = await login(app, 'sarah.okonkwo@brightwaterlogistics.com');
+    const marcus = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const created = await app.inject({
+      method: 'POST', url: '/api/assistant/conversations', headers: authHeaders(sarah),
+    });
+    const conversationId = created.json().id as string;
+
+    const guessed = await app.inject({
+      method: 'GET',
+      url: `/api/assistant/conversations/${conversationId}/messages`,
+      headers: authHeaders(marcus),
+    });
+    expect(guessed.statusCode).toBe(404);
+
+    const wrongTenant = await app.inject({
+      method: 'POST',
+      url: '/api/assistant/conversations',
+      headers: authHeaders(marcus, 'northwind'),
+    });
+    expect(wrongTenant.statusCode).toBe(404);
+  });
+
+  it('filters client-user tools before any portal data reaches the model', async () => {
+    const provider = new PermissionCaptureProvider();
+    const app = await makeApp(provider);
+    const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    const conversationId = created.json().id as string;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${conversationId}/messages`,
+      headers,
+      payload: { content: 'What can I see?', requestId: 'permission-check' },
+    });
+
+    expect(provider.captured.budgets).toEqual([]);
+    expect(provider.captured.qbrs).toEqual([]);
+    expect(provider.captured.tickets.length).toBeGreaterThan(0);
+    expect(provider.captured.tickets.every((record) => record.data.requesterId === 'bw-p2')).toBe(true);
+    expect(JSON.stringify(provider.captured.tickets)).not.toContain('"internal":true');
+    expect(provider.captured['form-submissions']).toEqual([]);
+  });
+
+  it('drops fabricated citations and replaces unsupported factual answers', async () => {
+    const provider: AssistantModelProvider = {
+      async generate() {
+        return {
+          answer: 'This answer has no permitted evidence.',
+          sourceIds: ['tickets:made-up'],
+          accessedRecords: [],
+        };
+      },
+    };
+    const app = await makeApp(provider);
+    const token = await login(app, 'sarah.okonkwo@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    const conversationId = created.json().id as string;
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${conversationId}/messages`,
+      headers,
+      payload: { content: 'Invent something', requestId: 'fabricated-source' },
+    });
+    const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
+    expect(completed?.message).toMatchObject({
+      content: "I couldn't find that in the portal data available to you.",
+      citations: [],
+    });
+  });
+
+  it('rejects oversized messages before calling the provider', async () => {
+    const provider = new CitationProvider();
+    const app = await makeApp(provider);
+    const token = await login(app, 'sarah.okonkwo@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'x'.repeat(4_001), requestId: 'too-long' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(provider.calls).toBe(0);
+  });
+});
