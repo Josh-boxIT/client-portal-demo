@@ -3,6 +3,8 @@ import type { AppDb } from '../db/client';
 import { adminUsersRepo, demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo } from '../db/repositories';
 import type { ConfigStore } from '../framework/config-store';
 import { getSeed } from '@/data';
+import { backlogIntelligenceSnapshot } from '@/data/seed/backlogIntelligence';
+import { getChurnAssessment } from '@/data/seed/customerChurn';
 import type { Ticket } from '@/services/types';
 
 export const PORTAL_DOMAINS = [
@@ -16,7 +18,9 @@ export const PORTAL_DOMAINS = [
   'qbrs',
   'budgets',
   'risks',
+  'customer-churn',
   'metrics',
+  'queue-attention',
   'documents',
   'forms',
   'form-submissions',
@@ -57,7 +61,9 @@ function recordHref(domain: PortalDomain, id: string): string {
     case 'qbrs': return '/qbrs';
     case 'budgets': return '/budget';
     case 'risks': return '/risk';
+    case 'customer-churn': return '/customer-churn';
     case 'metrics': return '/reports';
+    case 'queue-attention': return '/queue-attention';
     case 'forms':
     case 'form-submissions': return '/forms';
     case 'activity': return '/';
@@ -177,7 +183,38 @@ export async function buildPortalRecords(
     push('budgets', seed.budgetLines, (value) => `${String(value.category)} · ${String(value.period)}`);
   }
   push('risks', seed.risks, (value) => String(value.title));
+  const churnAssessment = getChurnAssessment(scope.tenantId);
+  if (churnAssessment) {
+    push('customer-churn', [{ id: 'assessment', ...churnAssessment }], () => 'Customer churn assessment');
+  }
   push('metrics', seed.metricSeries, (value) => String(value.label));
+  if (scope.isStaff) {
+    const snapshot = backlogIntelligenceSnapshot;
+    push('queue-attention', [{
+      id: 'overview',
+      schemaVersion: snapshot.schemaVersion,
+      scoringVersion: snapshot.scoringVersion,
+      generatedAt: snapshot.generatedAt,
+      scope: snapshot.scope,
+      dataQuality: snapshot.dataQuality,
+      summary: snapshot.summary,
+    }], () => 'Queue Attention overview');
+    push('queue-attention', snapshot.items.map((item) => ({
+      id: `item:${item.itemId}`,
+      ...item,
+    })), (value) => {
+      const display = value.display as Record<string, unknown>;
+      return `${String(display.title)} (${String(value.primaryTicketExternalId)})`;
+    });
+    push('queue-attention', snapshot.topPatterns.map((pattern, index) => ({
+      id: `pattern:${index + 1}`,
+      ...pattern,
+    })), (value) => `Queue pattern: ${String(value.title)}`);
+    push('queue-attention', snapshot.suggestedDispatchAgenda.map((item) => ({
+      id: `agenda:${item.rank}`,
+      ...item,
+    })), (value) => `Dispatch priority ${String(value.rank)}`);
+  }
   push('documents', seed.documents, (value) => String(value.title));
   push('forms', seed.forms, (value) => String(value.title));
   push('news', seed.news, (value) => String(value.title));

@@ -75,6 +75,37 @@ class PermissionCaptureProvider implements AssistantModelProvider {
   }
 }
 
+class NewDataCaptureProvider implements AssistantModelProvider {
+  calls: Array<{
+    churn: PortalRecord[];
+    queueAttention: PortalRecord[];
+    queueSearch: PortalRecord[];
+  }> = [];
+
+  async generate(input: AssistantModelInput): Promise<AssistantModelResult> {
+    const churn = await input.executeTool('search_portal', {
+      query: 'risk', domains: ['customer-churn'], limit: 50,
+    });
+    const queueAttention = await input.executeTool('list_portal_records', {
+      domain: 'queue-attention', limit: 50,
+    });
+    const queueSearch = await input.executeTool('search_portal', {
+      query: 'DEMO-4001', domains: ['queue-attention'], limit: 50,
+    });
+    this.calls.push({ churn, queueAttention, queueSearch });
+    const accessedRecords = [...churn, ...queueAttention, ...queueSearch];
+    return {
+      answer: accessedRecords.length > 0
+        ? 'I found the requested insight data.'
+        : "I couldn't find that in the portal data available to you.",
+      sourceIds: [churn[0], queueAttention[0]]
+        .filter((record): record is PortalRecord => Boolean(record))
+        .map((record) => record.sourceId),
+      accessedRecords,
+    };
+  }
+}
+
 describe('permission-aware assistant API', () => {
   it('requires authentication and reports disabled configuration without a key', async () => {
     const app = await makeApp(null);
@@ -174,6 +205,80 @@ describe('permission-aware assistant API', () => {
     expect(provider.captured.tickets.every((record) => record.data.requesterId === 'bw-p2')).toBe(true);
     expect(JSON.stringify(provider.captured.tickets)).not.toContain('"internal":true');
     expect(provider.captured['form-submissions']).toEqual([]);
+  });
+
+  it('exposes tenant churn data to client users without exposing Queue Attention', async () => {
+    const provider = new NewDataCaptureProvider();
+    const app = await makeApp(provider);
+    const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'What is our churn risk?', requestId: 'client-churn' },
+    });
+
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0].churn).toHaveLength(1);
+    expect(provider.calls[0].churn[0]).toMatchObject({
+      sourceId: 'customer-churn:assessment',
+      domain: 'customer-churn',
+      href: '/customer-churn',
+      data: { score: 68 },
+    });
+    expect(provider.calls[0].queueAttention).toEqual([]);
+    expect(provider.calls[0].queueSearch).toEqual([]);
+
+    const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
+    expect(completed?.message).toMatchObject({
+      citations: [{ recordType: 'customer-churn', href: '/customer-churn' }],
+    });
+  });
+
+  it('gives staff display-safe Queue Attention records and tenant-specific churn citations', async () => {
+    const provider = new NewDataCaptureProvider();
+    const app = await makeApp(provider);
+    const token = await login(app, 'alex.morgan@boxit.demo');
+
+    for (const [tenantId, requestId] of [['brightwater', 'staff-brightwater'], ['northwind', 'staff-northwind']]) {
+      const headers = authHeaders(token, tenantId);
+      const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/assistant/conversations/${created.json().id}/messages`,
+        headers,
+        payload: { content: 'Summarize churn and queue attention.', requestId },
+      });
+      const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
+      expect(completed?.message).toMatchObject({
+        citations: [
+          { recordType: 'customer-churn', href: '/customer-churn' },
+          { recordType: 'queue-attention', href: '/queue-attention' },
+        ],
+      });
+    }
+
+    expect(provider.calls).toHaveLength(2);
+    expect(provider.calls[0].churn[0].data.score).toBe(68);
+    expect(provider.calls[1].churn[0].data.score).toBe(81);
+    expect(provider.calls[0].churn).toHaveLength(1);
+    expect(provider.calls[1].churn).toHaveLength(1);
+
+    const queueRecords = provider.calls[0].queueAttention;
+    expect(queueRecords).toHaveLength(12);
+    expect(queueRecords.find((record) => record.recordId === 'overview')?.data.summary).toMatchObject({
+      scannedTicketCount: 10,
+      flaggedTicketCount: 4,
+    });
+    expect(queueRecords.filter((record) => record.recordId.startsWith('item:'))).toHaveLength(4);
+    expect(queueRecords.filter((record) => record.recordId.startsWith('pattern:'))).toHaveLength(3);
+    expect(queueRecords.filter((record) => record.recordId.startsWith('agenda:'))).toHaveLength(4);
+    expect(provider.calls[0].queueSearch.some(
+      (record) => record.data.primaryTicketExternalId === 'DEMO-4001',
+    )).toBe(true);
+    expect(JSON.stringify(queueRecords)).not.toMatch(/"(?:internal|messages|notes)"/);
   });
 
   it('drops fabricated citations and replaces unsupported factual answers', async () => {
