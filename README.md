@@ -9,10 +9,17 @@ No Docker, Postgres, cloud login, vendor credentials, or external API access is 
 ### Prerequisites
 
 - [Git](https://git-scm.com/)
-- [Node.js 22 LTS](https://nodejs.org/) and npm
+- [Node.js 22 LTS](https://nodejs.org/) and npm. The repository is pinned to
+  Node 22 because `better-sqlite3` is a native module and cannot share one
+  `node_modules` installation across different Node ABI versions.
 
-Node 20 is also supported. You do not need Docker, a cloud account, or any
-third-party credentials.
+If you use nvm, select the checked-in runtime before installing:
+
+```bash
+nvm use
+```
+
+You do not need Docker, a cloud account, or any third-party credentials.
 
 ### Install and run
 
@@ -34,6 +41,20 @@ To override the API host, port, or database location, copy the example first:
 ```bash
 cp .env.example .env
 ```
+
+### Optional AI assistant
+
+The portal hides its permission-aware AI assistant unless an OpenAI API key is configured. The assistant is the demo's only live external service; it can only search server-filtered sample records and cannot change portal data.
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+# Optional defaults:
+export OPENAI_MODEL="gpt-5.6-terra"
+export OPENAI_REASONING_EFFORT="low"
+npm run dev
+```
+
+Conversation history remains in the local SQLite database and is separated by signed-in user and tenant. The API key is read only by the Fastify server and is never sent to the browser.
 
 After making changes, run the same checks used to validate the project:
 
@@ -83,6 +104,7 @@ SQLite persists:
 - Tenant-specific action definitions.
 - Tickets created directly or through an action wizard.
 - Form submissions.
+- Permission-aware assistant conversations and messages.
 - Admin audit events.
 
 Created tickets are merged with the canonical ticket samples. Form submissions are scoped to the active client persona. Other transient interface state, such as dismissed banners and the current activity overlay, resets with the browser session.
@@ -94,6 +116,7 @@ Created tickets are merged with the canonical ticket samples. Form submissions a
 - **Immutable domain data:** typed sample services behind `useServices()`.
 - **Mutable demo data:** same-origin REST services backed by SQLite.
 - **Multi-tenancy:** every service call and persisted record is scoped by tenant ID.
+- **Permission-aware AI:** optional, read-only OpenAI-powered conversations grounded in each user's permitted demo records.
 
 The portal has one permanent sample-only service graph. There is no live-data switch or connector registry. Components continue to consume typed service interfaces rather than importing persistence details.
 

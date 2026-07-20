@@ -11,6 +11,7 @@ import { getSeed } from '@/data';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { AssistantWidget } from '@/features/assistant/AssistantWidget';
 
 export function AppShell() {
   const { token, identity, setIdentity, setAccessibleClientIds, accessibleClientIds, clear } = useAuthStore();
@@ -99,6 +100,7 @@ export function AppShell() {
       </div>
 
       <Toaster richColors position="top-right" />
+      <AssistantWidget />
     </div>
   );
 }

@@ -82,6 +82,11 @@ export function demoTicketMutationRepo(db: AppDb) {
 
 export function formSubmissionRepo(db: AppDb) {
   return {
+    async listForTenant(tenantId: string): Promise<FormSubmission[]> {
+      return db.select().from(formSubmissions)
+        .where(eq(formSubmissions.tenantId, tenantId))
+        .orderBy(desc(formSubmissions.submittedAt)).all();
+    },
     async list(tenantId: string, submittedBy: string): Promise<FormSubmission[]> {
       return db.select().from(formSubmissions)
         .where(and(eq(formSubmissions.tenantId, tenantId), eq(formSubmissions.submittedBy, submittedBy)))

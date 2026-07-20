@@ -4,6 +4,7 @@ import type {
   ActionStep,
   ActionTicketConfig,
   FormSubmission,
+  AssistantCitation,
   Ticket,
   TicketMessage,
   TicketStatus,
@@ -123,6 +124,34 @@ export const formSubmissions = sqliteTable('form_submissions', {
   tenantSubmitterIndex: index('form_submissions_tenant_submitter_idx').on(table.tenantId, table.submittedBy),
 }));
 
+export const assistantConversations = sqliteTable('assistant_conversations', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  userId: text('user_id').notNull().references(() => adminUsers.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New conversation'),
+  createdAt: text('created_at').notNull().default(now),
+  updatedAt: text('updated_at').notNull().default(now),
+}, (table) => ({
+  ownerTenantUpdatedIndex: index('assistant_conversations_owner_tenant_updated_idx')
+    .on(table.userId, table.tenantId, table.updatedAt),
+}));
+
+export const assistantMessages = sqliteTable('assistant_messages', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull()
+    .references(() => assistantConversations.id, { onDelete: 'cascade' }),
+  role: text('role').$type<'user' | 'assistant'>().notNull(),
+  content: text('content').notNull(),
+  requestId: text('request_id'),
+  citations: text('citations', { mode: 'json' }).$type<AssistantCitation[]>().notNull(),
+  createdAt: text('created_at').notNull().default(now),
+}, (table) => ({
+  conversationCreatedIndex: index('assistant_messages_conversation_created_idx')
+    .on(table.conversationId, table.createdAt),
+  conversationRequestUnique: uniqueIndex('assistant_messages_conversation_request_uq')
+    .on(table.conversationId, table.requestId),
+}));
+
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
 export type AuditEntry = typeof auditLog.$inferSelect;
@@ -132,3 +161,5 @@ export type ActionDefRow = typeof actionDefs.$inferSelect;
 export type NewActionDef = typeof actionDefs.$inferInsert;
 export type DemoTicketRow = typeof demoTickets.$inferSelect;
 export type FormSubmissionRow = typeof formSubmissions.$inferSelect;
+export type AssistantConversationRow = typeof assistantConversations.$inferSelect;
+export type AssistantMessageRow = typeof assistantMessages.$inferSelect;
