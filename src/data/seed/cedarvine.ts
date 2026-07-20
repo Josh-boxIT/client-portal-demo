@@ -1,7 +1,7 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
   RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
-  FormDef, AppTile, NewsItem, ActivityItem, TicketMessage,
+  FormDef, NewsItem, ActivityItem, TicketMessage,
 } from '@/services/types';
 
 const T = 'cedarvine';
@@ -233,17 +233,6 @@ const forms: FormDef[] = [
   },
 ];
 
-const apps: AppTile[] = [
-  { id: 'cv-app1', tenantId: T, name: 'Outlook', category: 'Productivity', description: 'Email and calendar', color: '#0078d4', icon: 'Mail' },
-  { id: 'cv-app2', tenantId: T, name: 'Microsoft Teams', category: 'Communication', description: 'Chat, calls, and meetings', color: '#6264a7', icon: 'MessageSquare' },
-  { id: 'cv-app3', tenantId: T, name: 'Toast POS Admin', category: 'Operations', description: 'Manage POS terminals and menus', color: '#e8522a', icon: 'Receipt' },
-  { id: 'cv-app4', tenantId: T, name: 'OpenTable Manager', category: 'Reservations', description: 'Guest reservations and seating', color: '#da3743', icon: 'CalendarCheck' },
-  { id: 'cv-app5', tenantId: T, name: 'OneDrive', category: 'Storage', description: 'Personal cloud storage', color: '#0078d4', icon: 'Cloud' },
-  { id: 'cv-app6', tenantId: T, name: 'SharePoint', category: 'Productivity', description: 'Team sites and document management', color: '#0078d4', icon: 'FolderOpen' },
-  { id: 'cv-app7', tenantId: T, name: 'Canva for Work', category: 'Marketing', description: 'Design and social media graphics', color: '#00c4cc', icon: 'Palette' },
-  { id: 'cv-app8', tenantId: T, name: 'HotSOS (Maintenance)', category: 'Facilities', description: 'Maintenance request tracking', color: '#ff6b35', icon: 'Wrench' },
-];
-
 const news: NewsItem[] = [
   {
     id: 'cv-n1', tenantId: T, title: 'Upcoming: Windows 10 End of Life — Action Required', category: 'Security', publishedAt: '2026-06-01T09:00:00Z', author: 'Marco Vitale', pinned: true,
@@ -284,7 +273,6 @@ export const cedarvineSeed: TenantSeed = {
   metricSeries,
   documents,
   forms,
-  apps,
   news,
   activity,
 };

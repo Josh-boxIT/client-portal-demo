@@ -81,7 +81,6 @@ function buildFakeBase() {
     metrics: {} as BaseServices['metrics'],
     documents: {} as BaseServices['documents'],
     forms: {} as BaseServices['forms'],
-    apps: {} as BaseServices['apps'],
     news: {} as BaseServices['news'],
     actions: {} as BaseServices['actions'],
     activity: {} as BaseServices['activity'],

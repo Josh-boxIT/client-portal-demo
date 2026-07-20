@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Ticket, Users, HardDrive, Key,
   Map, PresentationIcon, DollarSign, ShieldAlert, BarChart3,
-  FileText, ClipboardList, Grid3X3, Newspaper, Phone,
+  FileText, ClipboardList, Newspaper, Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session';
@@ -53,7 +53,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Documents', href: '/documents', icon: <FileText className="h-4 w-4" /> },
       { label: 'Forms', href: '/forms', icon: <ClipboardList className="h-4 w-4" /> },
-      { label: 'My apps', href: '/apps', icon: <Grid3X3 className="h-4 w-4" /> },
       { label: 'News', href: '/news', icon: <Newspaper className="h-4 w-4" /> },
     ],
   },
