@@ -4,20 +4,59 @@ A self-contained, white-label MSP client portal built for demos. It ships with t
 
 No Docker, Postgres, cloud login, vendor credentials, or external API access is required.
 
-## Run the demo
+## Development setup
+
+### Prerequisites
+
+- [Git](https://git-scm.com/)
+- [Node.js 22 LTS](https://nodejs.org/) and npm
+
+Node 20 is also supported. You do not need Docker, a cloud account, or any
+third-party credentials.
+
+### Install and run
 
 ```bash
-npm install
-npm run demo
-```
-
-`npm run demo` builds the production frontend and launches it with the local API. Open the Vite preview URL printed in the terminal. For development with hot reload, use:
-
-```bash
+git clone https://github.com/Josh-boxIT/client-portal-demo.git
+cd client-portal-demo
+npm ci
 npm run dev
 ```
 
-Both commands automatically create `server/data/app.db`, apply SQLite migrations, and seed the demo on the first run. An `.env` file is optional; see `.env.example` for port, host, and database-path overrides.
+Open the frontend URL printed by Vite (normally
+`http://localhost:5173`). The development command starts both the React
+frontend with hot reload and the local API at `http://127.0.0.1:8787`.
+
+The first startup automatically creates `server/data/app.db`, applies the
+SQLite migrations, and loads the sample data. An `.env` file is not required.
+To override the API host, port, or database location, copy the example first:
+
+```bash
+cp .env.example .env
+```
+
+After making changes, run the same checks used to validate the project:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+### Run the production-style demo locally
+
+```bash
+npm run demo
+```
+
+This builds the production frontend and launches it with the local API. Open
+the preview URL printed in the terminal.
+
+### Reset the local demo data
+
+Stop the development server, delete `server/data/app.db` and any neighboring
+`app.db-wal` or `app.db-shm` files, then run `npm run dev` again. These database
+files are ignored by Git and are recreated from the canonical sample data.
 
 ## Demo identities
 
@@ -69,8 +108,6 @@ npm run lint              # ESLint
 npm run db:generate       # generate SQLite migrations from schema changes
 npm run db:migrate        # apply migrations to the local SQLite file
 ```
-
-The default database file is gitignored. To start from a completely clean demo, stop the app and remove `server/data/app.db` plus any `-wal`/`-shm` companions; the next startup recreates the canonical sample baseline.
 
 ## Admin surfaces
 
