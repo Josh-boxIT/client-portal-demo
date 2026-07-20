@@ -4,6 +4,7 @@ import { LoginPage } from '@/features/login/LoginPage';
 import { AdminShell } from '@/admin/AdminShell';
 import { ClientsPage } from '@/admin/pages/ClientsPage';
 import { UsersPage } from '@/admin/pages/UsersPage';
+import { QueueAttentionPage } from '@/admin/pages/QueueAttentionPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ActionsPage } from '@/features/actions/ActionsPage';
 import { ManageActionsPage } from '@/features/actions/ManageActionsPage';
@@ -19,6 +20,7 @@ import { RoadmapsPage } from '@/features/roadmaps/RoadmapsPage';
 import { QBRsPage } from '@/features/qbrs/QBRsPage';
 import { BudgetPage } from '@/features/budget/BudgetPage';
 import { RiskPage } from '@/features/risk/RiskPage';
+import { CustomerChurnPage } from '@/features/churn/CustomerChurnPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { DocumentsPage } from '@/features/documents/DocumentsPage';
 import { DocumentDetailPage } from '@/features/documents/DocumentDetailPage';
@@ -50,7 +52,9 @@ export const router = createBrowserRouter([
       { path: 'qbrs', element: <QBRsPage /> },
       { path: 'budget', element: <BudgetPage /> },
       { path: 'risk', element: <RiskPage /> },
+      { path: 'customer-churn', element: <CustomerChurnPage /> },
       { path: 'reports', element: <ReportsPage /> },
+      { path: 'queue-attention', element: <QueueAttentionPage /> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
       { path: 'forms', element: <FormsPage /> },

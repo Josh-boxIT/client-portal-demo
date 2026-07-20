@@ -10,6 +10,7 @@ import { mockRiskService } from './mock/risk';
 import { mockDocumentService } from './mock/documents';
 import { mockNewsService } from './mock/news';
 import { mockActivityService } from './mock/activity';
+import { mockBacklogIntelligenceService } from './mock/backlogIntelligence';
 import { restTicketService } from './rest/tickets';
 import { restActionService } from './rest/actions';
 import { restAssistantService } from './rest/assistant';
@@ -36,5 +37,6 @@ export function buildServices(): Services {
     actions: restActionService,
     activity: mockActivityService,
     assistant: restAssistantService,
+    backlogIntelligence: mockBacklogIntelligenceService,
   });
 }

@@ -512,6 +512,104 @@ export interface ActivityItem {
   icon?: string;
 }
 
+// ─── Backlog Intelligence (staff-only scanner projection) ──────────────────────
+
+export type BacklogPriorityBand = 'ACT_NOW' | 'REVIEW_TODAY' | 'MONITOR' | 'NO_ACTION';
+export type BacklogClusterDisposition = 'PRIMARY' | 'BUNDLE' | 'SINGLETON';
+export type BacklogPlannedWorkState = 'CURRENT' | 'PLAN_STALE' | 'NOT_APPLICABLE';
+export type BacklogConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+export type BacklogSlaState = 'BREACHED' | 'AT_RISK' | 'ON_TRACK' | 'UNKNOWN';
+
+export interface BacklogFactorBreakdown {
+  agePressure: number;
+  slaProximity: number;
+  bounceCount: number;
+  staleness: number;
+  waitingStateDecay: number;
+  missingInformation: number;
+  clientWeight: number;
+  modifiers?: Record<string, number>;
+}
+
+export interface BacklogSuggestedHumanAction {
+  actionType:
+    | 'ESCALATE'
+    | 'REQUEST_INFO'
+    | 'FOLLOW_UP'
+    | 'ENRICH'
+    | 'MERGE'
+    | 'SCHEDULE'
+    | 'CLOSE_CANDIDATE'
+    | 'MONITOR';
+  summary: string;
+}
+
+/** Display-safe fields emitted by the scanner alongside the canonical risk facts. */
+export interface BacklogItemDisplay {
+  title: string;
+  queue: string;
+  ageHours: number;
+  hoursSinceMeaningfulActivity: number | null;
+  slaState: BacklogSlaState;
+  affectedUsersEstimate: number;
+  serviceSummary: string;
+  recurrenceWindow: string;
+  nextCheckpoint?: string;
+  waitingParty?: string;
+  followUpDueAt?: string;
+}
+
+export interface BacklogIntelligenceItem {
+  itemId: string;
+  itemType: 'CLUSTER' | 'TICKET';
+  primaryTicketExternalId: string;
+  clusterDisposition: BacklogClusterDisposition;
+  memberTicketExternalIds: string[];
+  riskScore: number;
+  priorityBand: BacklogPriorityBand;
+  recommendedLane: string;
+  plannedWorkState: BacklogPlannedWorkState;
+  confidence: BacklogConfidence;
+  attentionReasons: string[];
+  factorBreakdown: BacklogFactorBreakdown;
+  suggestedHumanAction: BacklogSuggestedHumanAction;
+  dataQualityNotes: string[];
+  display: BacklogItemDisplay;
+}
+
+export interface BacklogIntelligenceSnapshot {
+  schemaVersion: 'backlog-intelligence/v1';
+  scoringVersion: string;
+  generatedAt: string;
+  scope: {
+    type: 'organization' | 'queue' | 'account';
+    queueIds: string[];
+    timezone: string;
+  };
+  dataQuality: {
+    ticketSourceFreshThrough: string;
+    historyCoverage: 'complete' | 'partial' | 'unknown';
+    limitations: string[];
+  };
+  summary: {
+    scannedTicketCount: number;
+    eligibleTicketCount: number;
+    flaggedTicketCount: number;
+    countsByPriorityBand: Record<'ACT_NOW' | 'REVIEW_TODAY' | 'MONITOR', number>;
+  };
+  items: BacklogIntelligenceItem[];
+  topPatterns: Array<{
+    title: string;
+    summary: string;
+    itemIds: string[];
+  }>;
+  suggestedDispatchAgenda: Array<{
+    rank: number;
+    itemId: string;
+    summary: string;
+  }>;
+}
+
 // ─── Seed aggregate ───────────────────────────────────────────────────────────
 
 export interface TenantSeed {
@@ -683,6 +781,10 @@ export interface AssistantService {
   ): Promise<void>;
 }
 
+export interface BacklogIntelligenceService {
+  getSnapshot(): Promise<BacklogIntelligenceSnapshot>;
+}
+
 // ─── Prefetch / drilldown cache controller ────────────────────────────────────
 
 /** Synchronous cache snapshot for the People & Devices "Person detail" panel. */
@@ -741,5 +843,6 @@ export interface Services {
   actions: ActionService;
   activity: ActivityService;
   assistant: AssistantService;
+  backlogIntelligence: BacklogIntelligenceService;
   prefetch: PrefetchController;
 }
