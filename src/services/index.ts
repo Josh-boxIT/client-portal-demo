@@ -8,7 +8,6 @@ import { mockQBRService } from './mock/qbr';
 import { mockBudgetService } from './mock/budget';
 import { mockRiskService } from './mock/risk';
 import { mockDocumentService } from './mock/documents';
-import { mockAppLaunchpadService } from './mock/apps';
 import { mockNewsService } from './mock/news';
 import { mockActivityService } from './mock/activity';
 import { mockBacklogIntelligenceService } from './mock/backlogIntelligence';
@@ -33,7 +32,6 @@ export function buildServices(): Services {
     metrics: demoMetricsService,
     documents: mockDocumentService,
     forms: persistentFormService,
-    apps: mockAppLaunchpadService,
     news: mockNewsService,
     actions: restActionService,
     activity: mockActivityService,

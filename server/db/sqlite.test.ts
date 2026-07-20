@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getDb, runMigrations } from './client';
 import { seedIfEmpty } from './seed';
 import { actionDefs, adminUsers, tenants } from './schema';
-import { demoTicketRepo, formSubmissionRepo, tenantRepo } from './repositories';
+import { demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo, tenantRepo } from './repositories';
 import type { FormSubmission, Ticket } from '@/services/types';
 
 const tempDirs: string[] = [];
@@ -48,12 +48,25 @@ describe('SQLite demo persistence', () => {
       submittedAt: '2026-07-20T12:00:00.000Z', submittedBy: 'bw-admin',
     };
     await demoTicketRepo(first.db).create(ticket);
+    await demoTicketMutationRepo(first.db).setStatus('brightwater', ticket.id, 'resolved', '2026-07-20T12:05:00.000Z');
+    await demoTicketMutationRepo(first.db).addReply('brightwater', ticket.id, {
+      id: 'msg-persisted', author: 'Sarah Okonkwo', authorType: 'requester', body: 'This is fixed.',
+      at: '2026-07-20T12:06:00.000Z',
+    });
     await formSubmissionRepo(first.db).create(submission);
     first.raw.close();
 
     const second = getDb(path);
     runMigrations(second.db);
     expect(await demoTicketRepo(second.db).get('brightwater', ticket.id)).toEqual(ticket);
+    expect(await demoTicketMutationRepo(second.db).get('brightwater', ticket.id)).toEqual({
+      status: 'resolved',
+      replies: [{
+        id: 'msg-persisted', author: 'Sarah Okonkwo', authorType: 'requester', body: 'This is fixed.',
+        at: '2026-07-20T12:06:00.000Z',
+      }],
+      updatedAt: '2026-07-20T12:06:00.000Z',
+    });
     expect(await formSubmissionRepo(second.db).list('brightwater', 'bw-admin')).toEqual([submission]);
     second.raw.close();
   });

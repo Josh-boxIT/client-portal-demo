@@ -278,6 +278,14 @@ export interface CreateTicketInput {
   requesterId: string;
 }
 
+export interface UpdateTicketStatusInput {
+  status: TicketStatus;
+}
+
+export interface CreateTicketReplyInput {
+  body: string;
+}
+
 // ─── Asset ────────────────────────────────────────────────────────────────────
 
 export type AssetCategory = 'hardware' | 'software';
@@ -450,18 +458,6 @@ export interface FormSubmission {
   submittedBy: string; // personId or persona name
 }
 
-// ─── App Launchpad ────────────────────────────────────────────────────────────
-
-export interface AppTile {
-  id: string;
-  tenantId: string;
-  name: string;
-  category: string;
-  description: string;
-  color: string; // CSS color / tailwind class hint
-  icon: string; // lucide icon name key
-}
-
 // ─── News ─────────────────────────────────────────────────────────────────────
 
 export interface NewsItem {
@@ -631,7 +627,6 @@ export interface TenantSeed {
   metricSeries: MetricSeries[];
   documents: Document[];
   forms: FormDef[];
-  apps: AppTile[];
   news: NewsItem[];
   activity: ActivityItem[];
 }
@@ -642,6 +637,8 @@ export interface TicketService {
   list(tenantId: string, params?: ListParams): Promise<Page<Ticket>>;
   get(tenantId: string, id: string): Promise<Ticket | null>;
   create(tenantId: string, input: CreateTicketInput): Promise<Ticket>;
+  updateStatus(tenantId: string, id: string, input: UpdateTicketStatusInput): Promise<Ticket>;
+  reply(tenantId: string, id: string, input: CreateTicketReplyInput): Promise<Ticket>;
 }
 
 export interface PeopleService {
@@ -722,10 +719,6 @@ export interface FormService {
   listSubmissions(tenantId: string, submittedBy: string, params?: ListParams): Promise<Page<FormSubmission>>;
 }
 
-export interface AppLaunchpadService {
-  list(tenantId: string, params?: ListParams): Promise<Page<AppTile>>;
-}
-
 export interface NewsService {
   list(tenantId: string, params?: ListParams): Promise<Page<NewsItem>>;
   get(tenantId: string, id: string): Promise<NewsItem | null>;
@@ -798,7 +791,6 @@ export interface Services {
   metrics: MetricsService;
   documents: DocumentService;
   forms: FormService;
-  apps: AppLaunchpadService;
   news: NewsService;
   actions: ActionService;
   activity: ActivityService;

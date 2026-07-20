@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getSeed } from '@/data';
-import type { CreateTicketInput, FormSubmission, Ticket } from '@/services/types';
-import { demoTicketRepo, formSubmissionRepo } from '../db/repositories';
+import type {
+  CreateTicketInput,
+  CreateTicketReplyInput,
+  FormSubmission,
+  Ticket,
+  TicketStatus,
+  UpdateTicketStatusInput,
+} from '@/services/types';
+import { demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo } from '../db/repositories';
+import type { DemoTicketMutation } from '../db/repositories/demo-data';
 import { ApiError, BadRequestError, NotFoundError } from '../framework/errors';
 import { paginateArray, type ListQuery } from '../framework/paginate';
 import { isBoxItStaff } from '../auth/is-staff';
@@ -48,6 +56,42 @@ function publicTicket(ticket: Ticket, staff: boolean): Ticket {
   };
 }
 
+/**
+ * Client users may only work with tickets they requested. Client admins and
+ * boxIT staff retain tenant-wide ticket access. A null scope preserves the
+ * existing behavior for routes called without an authenticated portal user.
+ */
+function ticketRequesterScope(req: FastifyRequest, tenantId: string): string | null {
+  if (!req.adminIdentity || isBoxItStaff(req.adminIdentity)) return null;
+
+  const seed = getSeed(tenantId);
+  const persona = seed.personas.find(
+    (candidate) => candidate.email.toLowerCase() === req.adminIdentity!.email.toLowerCase(),
+  );
+  if (persona?.role !== 'client-user') return null;
+
+  const person = seed.people.find(
+    (candidate) => candidate.email.toLowerCase() === persona.email.toLowerCase(),
+  );
+  return person?.id ?? persona.id;
+}
+
+function canAccessTicket(ticket: Ticket, requesterScope: string | null): boolean {
+  return requesterScope === null || ticket.requesterId === requesterScope;
+}
+
+function applyTicketMutation(ticket: Ticket, mutation?: DemoTicketMutation): Ticket {
+  if (!mutation) return ticket;
+  const status = mutation.status ?? ticket.status;
+  return {
+    ...ticket,
+    status,
+    isClosed: status === 'closed',
+    updatedAt: mutation.updatedAt,
+    messages: [...ticket.messages, ...mutation.replies],
+  };
+}
+
 function newTicket(tenantId: string, input: CreateTicketInput): Ticket {
   const timestamp = new Date().toISOString();
   const suffix = randomUUID().slice(0, 8).toUpperCase();
@@ -83,16 +127,26 @@ export function registerApiRoutes(app: FastifyInstance): void {
 
   app.get('/api/tickets', async (req) => {
     const tenantId = tenantFrom(req);
-    const created = await demoTicketRepo(app.db).list(tenantId);
-    const tickets = [...created, ...getSeed(tenantId).tickets].map((ticket) => publicTicket(ticket, isBoxItStaff(req.adminIdentity)));
+    const requesterScope = ticketRequesterScope(req, tenantId);
+    const [created, mutations] = await Promise.all([
+      demoTicketRepo(app.db).list(tenantId),
+      demoTicketMutationRepo(app.db).list(tenantId),
+    ]);
+    const tickets = [...created, ...getSeed(tenantId).tickets]
+      .map((ticket) => applyTicketMutation(ticket, mutations.get(ticket.id)))
+      .filter((ticket) => canAccessTicket(ticket, requesterScope))
+      .map((ticket) => publicTicket(ticket, isBoxItStaff(req.adminIdentity)));
     return paginateArray(tickets as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {}));
   });
   app.get('/api/tickets/:id', async (req, reply) => {
     const tenantId = tenantFrom(req);
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
-    if (!ticket) return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
-    return publicTicket(ticket, isBoxItStaff(req.adminIdentity));
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) {
+      return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
+    }
+    const mutation = await demoTicketMutationRepo(app.db).get(tenantId, id);
+    return publicTicket(applyTicketMutation(ticket, mutation), isBoxItStaff(req.adminIdentity));
   });
   app.post('/api/tickets', async (req, reply) => {
     const tenantId = tenantFrom(req);
@@ -100,8 +154,46 @@ export function registerApiRoutes(app: FastifyInstance): void {
     if (!input?.subject?.trim() || !input.body?.trim() || !input.requesterId || !input.category || !input.priority) {
       throw new BadRequestError('subject, body, requesterId, category, and priority are required');
     }
-    const ticket = await demoTicketRepo(app.db).create(newTicket(tenantId, input));
+    const requesterScope = ticketRequesterScope(req, tenantId);
+    const ticket = await demoTicketRepo(app.db).create(newTicket(
+      tenantId,
+      requesterScope === null ? input : { ...input, requesterId: requesterScope },
+    ));
     return reply.status(201).send(ticket);
+  });
+  app.patch('/api/tickets/:id/status', async (req) => {
+    const tenantId = tenantFrom(req);
+    const id = (req.params as { id: string }).id;
+    const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');
+
+    const input = req.body as UpdateTicketStatusInput;
+    const validStatuses: TicketStatus[] = ['open', 'in-progress', 'waiting', 'resolved', 'closed'];
+    if (!input?.status || !validStatuses.includes(input.status)) throw new BadRequestError('A valid status is required');
+
+    const mutation = await demoTicketMutationRepo(app.db).setStatus(tenantId, id, input.status, new Date().toISOString());
+    return publicTicket(applyTicketMutation(ticket, mutation), isBoxItStaff(req.adminIdentity));
+  });
+  app.post('/api/tickets/:id/replies', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const id = (req.params as { id: string }).id;
+    const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
+    if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');
+
+    const input = req.body as CreateTicketReplyInput;
+    const body = input?.body?.trim();
+    if (!body) throw new BadRequestError('Reply body is required');
+    if (body.length > 10_000) throw new BadRequestError('Reply body must be 10,000 characters or fewer');
+
+    const timestamp = new Date().toISOString();
+    const mutation = await demoTicketMutationRepo(app.db).addReply(tenantId, id, {
+      id: `msg-${randomUUID()}`,
+      author: req.adminIdentity?.name ?? 'You',
+      authorType: isBoxItStaff(req.adminIdentity) ? 'agent' : 'requester',
+      body,
+      at: timestamp,
+    });
+    return reply.status(201).send(publicTicket(applyTicketMutation(ticket, mutation), isBoxItStaff(req.adminIdentity)));
   });
 
   app.get('/api/form-submissions', async (req) => {

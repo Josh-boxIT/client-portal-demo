@@ -84,6 +84,12 @@ export const rest = {
   create<T>(tenantId: string, resource: string, body: unknown): Promise<T> {
     return request<T>(tenantId, `/${resource}`, { method: 'POST', body: JSON.stringify(body) });
   },
+  updatePath<T>(tenantId: string, path: string, body: unknown): Promise<T> {
+    return request<T>(tenantId, `/${path}`, { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  createPath<T>(tenantId: string, path: string, body: unknown): Promise<T> {
+    return request<T>(tenantId, `/${path}`, { method: 'POST', body: JSON.stringify(body) });
+  },
   /** Raw GET of an arbitrary sub-path returning `T` directly (not a `Page<T>` envelope). */
   getPath<T>(tenantId: string, path: string): Promise<T> {
     return request<T>(tenantId, `/${path}`);

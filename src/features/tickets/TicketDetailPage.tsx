@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useServices } from '@/services/context';
 import { useSessionStore } from '@/store/session';
 import type { Ticket, TicketMessage, TicketStatus } from '@/services/types';
@@ -19,7 +20,7 @@ import {
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/common/StatusBadge';
 import { MarkdownRenderer } from '@/features/documents/MarkdownRenderer';
 import { formatDateTime, formatRelative } from '@/lib/format';
-import { Bot, User, Info, Send, ArrowLeft, AlertCircle, Lock, Clock, Paperclip } from 'lucide-react';
+import { Bot, User, Info, Send, ArrowLeft, AlertCircle, Lock, Clock, Loader2, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { isBoxItStaff } from '@/lib/accessibleTenants';
@@ -38,7 +39,7 @@ function ConsoleNote({ msg, requesterName }: { msg: TicketMessage; requesterName
   const isSystem = msg.authorType === 'system';
   const isTime = msg.kind === 'time';
   const isInternal = msg.internal && !isTime;
-  const authorLabel = isRequester ? requesterName : msg.author;
+  const authorLabel = isRequester && msg.author === 'You' ? requesterName : msg.author;
 
   if (isSystem) {
     return (
@@ -152,6 +153,9 @@ export function TicketDetailPage() {
   const [requesterName, setRequesterName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState('');
+  const [replying, setReplying] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   const paneRef = useRef<HTMLDivElement>(null);
   // On lg+, the pane fills the viewport below the top bar so only the notes list scrolls.
@@ -210,6 +214,36 @@ export function TicketDetailPage() {
       cancelled = true;
     };
   }, [id, activeTenantId, tickets, people]);
+
+  async function handleStatusChange(status: TicketStatus) {
+    if (!ticket || status === ticket.status) return;
+    setStatusUpdating(true);
+    try {
+      const updated = await tickets.updateStatus(activeTenantId, ticket.id, { status });
+      setTicket(updated);
+      toast.success('Ticket status updated');
+    } catch {
+      toast.error('Failed to update ticket status. Please try again.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  }
+
+  async function handleReply(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!ticket || !replyBody.trim() || replying) return;
+    setReplying(true);
+    try {
+      const updated = await tickets.reply(activeTenantId, ticket.id, { body: replyBody.trim() });
+      setTicket(updated);
+      setReplyBody('');
+      toast.success('Reply added');
+    } catch {
+      toast.error('Failed to add reply. Please try again.');
+    } finally {
+      setReplying(false);
+    }
+  }
 
   if (loading) return <DetailSkeleton />;
 
@@ -350,25 +384,31 @@ export function TicketDetailPage() {
           </div>
 
           {/* Reply composer (fixed at bottom) */}
-          <div className="shrink-0 rounded-lg border p-4 space-y-2 lg:mt-4">
+          <form onSubmit={handleReply} className="shrink-0 rounded-lg border p-4 space-y-2 lg:mt-4">
             <Label htmlFor="console-reply" className="text-xs font-medium">
               Add reply
             </Label>
             <Textarea
               id="console-reply"
-              value=""
-              disabled
-              placeholder="Replies from the portal are coming soon…"
+              value={replyBody}
+              onChange={(event) => setReplyBody(event.target.value)}
+              disabled={replying}
+              maxLength={10_000}
+              placeholder="Write a reply…"
               rows={3}
               className="resize-none text-sm"
             />
             <div className="flex justify-end">
-              <Button type="button" size="sm" disabled aria-label="Send reply (coming soon)">
-                <Send className="h-3.5 w-3.5 mr-1.5" />
-                Replies coming soon
+              <Button type="submit" size="sm" disabled={replying || !replyBody.trim()}>
+                {replying ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden />
+                ) : (
+                  <Send className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+                )}
+                {replying ? 'Sending…' : 'Send reply'}
               </Button>
             </div>
-          </div>
+          </form>
         </div>
 
         {/* Properties rail (fixed; scrolls internally if ever taller than the pane) */}
@@ -395,12 +435,15 @@ export function TicketDetailPage() {
               <Label htmlFor="console-status" className="text-xs shrink-0">
                 Change status:
               </Label>
-              <Select value={ticket.status} disabled>
+              <Select
+                value={ticket.status}
+                onValueChange={(value) => void handleStatusChange(value as TicketStatus)}
+                disabled={statusUpdating}
+              >
                 <SelectTrigger
                   id="console-status"
                   className="h-8 text-xs"
-                  aria-label="Change ticket status (coming soon)"
-                  disabled
+                  aria-label="Change ticket status"
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -413,9 +456,7 @@ export function TicketDetailPage() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Updating tickets from the portal is coming soon.
-            </p>
+            {statusUpdating && <p className="text-xs text-muted-foreground">Saving status…</p>}
           </div>
         </div>
       </div>

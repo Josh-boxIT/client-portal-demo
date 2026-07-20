@@ -20,11 +20,11 @@ import { RoadmapsPage } from '@/features/roadmaps/RoadmapsPage';
 import { QBRsPage } from '@/features/qbrs/QBRsPage';
 import { BudgetPage } from '@/features/budget/BudgetPage';
 import { RiskPage } from '@/features/risk/RiskPage';
+import { CustomerChurnPage } from '@/features/churn/CustomerChurnPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { DocumentsPage } from '@/features/documents/DocumentsPage';
 import { DocumentDetailPage } from '@/features/documents/DocumentDetailPage';
 import { FormsPage } from '@/features/forms/FormsPage';
-import { AppsPage } from '@/features/apps/AppsPage';
 import { NewsPage } from '@/features/news/NewsPage';
 import { NewsDetailPage } from '@/features/news/NewsDetailPage';
 
@@ -52,12 +52,12 @@ export const router = createBrowserRouter([
       { path: 'qbrs', element: <QBRsPage /> },
       { path: 'budget', element: <BudgetPage /> },
       { path: 'risk', element: <RiskPage /> },
+      { path: 'customer-churn', element: <CustomerChurnPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'queue-attention', element: <QueueAttentionPage /> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
       { path: 'forms', element: <FormsPage /> },
-      { path: 'apps', element: <AppsPage /> },
       { path: 'news', element: <NewsPage /> },
       { path: 'news/:id', element: <NewsDetailPage /> },
     ],

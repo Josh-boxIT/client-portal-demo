@@ -1,7 +1,7 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
   RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
-  FormDef, AppTile, NewsItem, ActivityItem, TicketMessage,
+  FormDef, NewsItem, ActivityItem, TicketMessage,
 } from '@/services/types';
 
 const T = 'northwind';
@@ -318,19 +318,6 @@ const forms: FormDef[] = [
   },
 ];
 
-const apps: AppTile[] = [
-  { id: 'nw-app1', tenantId: T, name: 'Outlook', category: 'Productivity', description: 'Email and calendar', color: '#0078d4', icon: 'Mail' },
-  { id: 'nw-app2', tenantId: T, name: 'Microsoft Teams', category: 'Communication', description: 'Chat, calls, and meetings', color: '#6264a7', icon: 'MessageSquare' },
-  { id: 'nw-app3', tenantId: T, name: 'Epic EHR', category: 'Clinical', description: 'Electronic Health Records system', color: '#c41230', icon: 'FileHeart' },
-  { id: 'nw-app4', tenantId: T, name: 'Power BI', category: 'Analytics', description: 'Clinical and operational reporting', color: '#f2c811', icon: 'BarChart3' },
-  { id: 'nw-app5', tenantId: T, name: 'Northwind Patient Portal', category: 'Clinical', description: 'Secure patient communication', color: '#0d9488', icon: 'Heart' },
-  { id: 'nw-app6', tenantId: T, name: 'SharePoint', category: 'Productivity', description: 'Policies, documents, and team sites', color: '#0078d4', icon: 'FolderOpen' },
-  { id: 'nw-app7', tenantId: T, name: 'OneDrive', category: 'Storage', description: 'Secure cloud file storage', color: '#0078d4', icon: 'Cloud' },
-  { id: 'nw-app8', tenantId: T, name: 'Azure Portal', category: 'IT Admin', description: 'Microsoft Azure management', color: '#0089d6', icon: 'Server' },
-  { id: 'nw-app9', tenantId: T, name: 'Veeam Backup Console', category: 'IT Admin', description: 'Backup and recovery management', color: '#00b336', icon: 'HardDrive' },
-  { id: 'nw-app10', tenantId: T, name: 'Defender Portal', category: 'Security', description: 'Microsoft 365 security center', color: '#107c10', icon: 'Shield' },
-];
-
 const news: NewsItem[] = [
   {
     id: 'nw-n1', tenantId: T, title: 'URGENT: PHI Incident Investigation Underway', category: 'Security', publishedAt: '2026-06-30T08:00:00Z', author: 'Hannah Weiss', pinned: true,
@@ -377,7 +364,6 @@ export const northwindSeed: TenantSeed = {
   metricSeries,
   documents,
   forms,
-  apps,
   news,
   activity,
 };

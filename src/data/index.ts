@@ -36,7 +36,6 @@ function buildDefaultSeed(tenantId: string): TenantSeed {
     metricSeries: [],
     documents: [],
     forms: [],
-    apps: [],
     news: [],
     activity: [],
   };
