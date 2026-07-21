@@ -15,6 +15,7 @@ import { restTicketService } from './rest/tickets';
 import { restActionService } from './rest/actions';
 import { restAssistantService } from './rest/assistant';
 import { restSalesOpportunityService } from './rest/salesOpportunities';
+import { restCustomerChurnService } from './rest/customerChurn';
 import { persistentFormService } from './rest/forms';
 import { demoMetricsService } from './demoMetrics';
 import { installDrilldownCache } from './cache/drilldownCache';
@@ -40,5 +41,6 @@ export function buildServices(): Services {
     assistant: restAssistantService,
     backlogIntelligence: mockBacklogIntelligenceService,
     salesOpportunities: restSalesOpportunityService,
+    customerChurn: restCustomerChurnService,
   });
 }

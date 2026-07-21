@@ -87,6 +87,7 @@ function buildFakeBase() {
     assistant: {} as BaseServices['assistant'],
     backlogIntelligence: {} as BaseServices['backlogIntelligence'],
     salesOpportunities: {} as BaseServices['salesOpportunities'],
+    customerChurn: {} as BaseServices['customerChurn'],
   };
 
   return { base, persons, deviceList };

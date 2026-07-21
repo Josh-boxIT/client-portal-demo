@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   ReceiptText,
   Repeat2,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +22,10 @@ import { Progress } from '@/components/ui/progress';
 import { useSessionStore } from '@/store/session';
 import { useAuthStore } from '@/store/auth';
 import { useTenantStore } from '@/theme/tenantStore';
+import { useServices } from '@/services/context';
+import type { ChurnAssessment, ChurnDataSource } from '@/data/seed/customerChurn';
 import { cn } from '@/lib/utils';
-import { formatAssessmentDate, getAccessibleChurnRows, getRiskTone } from './churnData';
+import { churnSourceLabel, formatAssessmentDate, getRiskTone } from './churnData';
 
 interface MetricCardProps {
   label: string;
@@ -31,6 +34,7 @@ interface MetricCardProps {
   icon: ReactNode;
   progress?: number;
   accentClass?: string;
+  source: ChurnDataSource;
 }
 
 function MetricCard({
@@ -40,13 +44,19 @@ function MetricCard({
   icon,
   progress,
   accentClass = 'text-primary',
+  source,
 }: MetricCardProps) {
   return (
     <Card className="h-full">
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">{label}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">{label}</p>
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                {churnSourceLabel(source)}
+              </Badge>
+            </div>
             <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
           </div>
           <div className={cn('rounded-lg bg-muted p-2.5', accentClass)}>{icon}</div>
@@ -63,12 +73,14 @@ function MetricCard({
 export function CustomerChurnPage() {
   const { customerId = '' } = useParams();
   const { activeTenantId, switchTenant } = useSessionStore();
-  const { identity, accessibleClientIds } = useAuthStore();
+  const { identity } = useAuthStore();
   const { tenants } = useTenantStore();
-  const row = getAccessibleChurnRows(identity, accessibleClientIds, tenants)
-    .find(({ customer }) => customer.id === customerId);
-  const customer = row?.customer;
-  const assessment = row?.assessment;
+  const { customerChurn } = useServices();
+  const customer = tenants.find((tenant) => tenant.id === customerId);
+  const [assessment, setAssessment] = useState<ChurnAssessment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (customer && activeTenantId !== customer.id) {
@@ -76,9 +88,37 @@ export function CustomerChurnPage() {
     }
   }, [activeTenantId, customer, switchTenant]);
 
-  if (!customer || !assessment) {
+  useEffect(() => {
+    if (identity?.role !== 'admin' || !customer) return;
+    setLoading(true);
+    setError('');
+    setAssessment(null);
+    customerChurn.get(customer.id)
+      .then(setAssessment)
+      .catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not load churn data'))
+      .finally(() => setLoading(false));
+  }, [customer, customerChurn, identity?.role]);
+
+  async function regenerate() {
+    if (!customer) return;
+    setRegenerating(true);
+    setError('');
+    try {
+      setAssessment(await customerChurn.regenerate(customer.id));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not regenerate the assessment');
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  if (identity?.role !== 'admin') return <Navigate to="/" replace />;
+
+  if (!customer) {
     return <Navigate to="/customer-churn" replace />;
   }
+  if (loading || assessment?.customerId !== customer.id) return <Card><CardContent className="py-16 text-center text-muted-foreground">Loading churn assessment…</CardContent></Card>;
+  if (!assessment) return <Card><CardContent className="py-16 text-center text-destructive">{error || 'Churn assessment not found'}</CardContent></Card>;
   const tone = getRiskTone(assessment.score);
 
   return (
@@ -94,7 +134,18 @@ export function CustomerChurnPage() {
             </Link>
           </Button>
         }
-        actions={<Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>
+            <Badge variant="outline">{assessment.source === 'mixed' ? 'Mixed live/demo data' : assessment.source === 'connectwise' ? 'Live CW data' : 'Demo data'}</Badge>
+            {assessment.source !== 'demo' && (
+              <Button size="sm" variant="outline" disabled={regenerating} onClick={() => void regenerate()}>
+                <RefreshCw className={cn('h-4 w-4', regenerating && 'animate-spin')} aria-hidden="true" />
+                {regenerating ? 'Regenerating…' : 'Regenerate AI assessment'}
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -142,7 +193,9 @@ export function CustomerChurnPage() {
 
             <div className="rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
               AI-generated assessment. Review source data and account context before taking action.
+              {assessment.narrativeModel && ` Narrative: ${assessment.narrativeModel}.`}
             </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </CardContent>
         </Card>
 
@@ -193,6 +246,7 @@ export function CustomerChurnPage() {
             value={`${assessment.accountAgeYears} yrs`}
             detail="Time since the customer account was opened"
             icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
+            source={assessment.metricSources.accountAgeYears}
           />
           <MetricCard
             label="Credit limit usage"
@@ -201,6 +255,7 @@ export function CustomerChurnPage() {
             icon={<CreditCard className="h-5 w-5" aria-hidden="true" />}
             progress={assessment.creditLimitUsagePercent}
             accentClass={assessment.creditLimitUsagePercent >= 75 ? 'text-orange-600' : 'text-primary'}
+            source={assessment.metricSources.creditLimitUsagePercent}
           />
           <MetricCard
             label="Days past due"
@@ -208,6 +263,7 @@ export function CustomerChurnPage() {
             detail="Based on the account's most overdue invoice"
             icon={<ReceiptText className="h-5 w-5" aria-hidden="true" />}
             accentClass={assessment.daysPastDue >= 30 ? 'text-red-600' : 'text-orange-600'}
+            source={assessment.metricSources.daysPastDue}
           />
           <MetricCard
             label="On-time payment ratio"
@@ -216,6 +272,7 @@ export function CustomerChurnPage() {
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
             progress={assessment.onTimePaymentRatio}
             accentClass={assessment.onTimePaymentRatio >= 90 ? 'text-green-600' : 'text-amber-600'}
+            source={assessment.metricSources.onTimePaymentRatio}
           />
           <MetricCard
             label="SLA conformance"
@@ -228,6 +285,7 @@ export function CustomerChurnPage() {
               : assessment.slaConformancePercent >= 85
                 ? 'text-amber-600'
                 : 'text-red-600'}
+            source={assessment.metricSources.slaConformancePercent}
           />
           <MetricCard
             label="Open cases"
@@ -235,6 +293,7 @@ export function CustomerChurnPage() {
             detail="Cases currently waiting for resolution"
             icon={<Inbox className="h-5 w-5" aria-hidden="true" />}
             accentClass={assessment.openCases >= 5 ? 'text-orange-600' : 'text-primary'}
+            source={assessment.metricSources.openCases}
           />
           <MetricCard
             label="Closed cases"
@@ -242,6 +301,7 @@ export function CustomerChurnPage() {
             detail="Cases resolved during the same 90-day period"
             icon={<Archive className="h-5 w-5" aria-hidden="true" />}
             accentClass="text-green-600"
+            source={assessment.metricSources.closedCases}
           />
           <MetricCard
             label="Repeat cases"
@@ -249,6 +309,7 @@ export function CustomerChurnPage() {
             detail="Cases linked to an issue reported more than once"
             icon={<Repeat2 className="h-5 w-5" aria-hidden="true" />}
             accentClass={assessment.repeatCases >= 3 ? 'text-red-600' : 'text-amber-600'}
+            source={assessment.metricSources.repeatCases}
           />
         </div>
       </section>

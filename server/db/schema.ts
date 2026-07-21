@@ -134,6 +134,16 @@ export const salesOpportunityHandoffs = sqliteTable('sales_opportunity_handoffs'
     .on(table.tenantId, table.fingerprint),
 }));
 
+export const churnNarratives = sqliteTable('churn_narratives', {
+  tenantId: text('tenant_id').primaryKey().references(() => tenants.id, { onDelete: 'cascade' }),
+  fingerprint: text('fingerprint').notNull(),
+  assessment: text('assessment').notNull(),
+  suggestedActions: text('suggested_actions').notNull(),
+  generatedAt: text('generated_at').notNull(),
+  model: text('model').notNull(),
+  updatedAt: text('updated_at').notNull().default(now),
+});
+
 export const demoTickets = sqliteTable('demo_tickets', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
@@ -144,6 +154,8 @@ export const demoTickets = sqliteTable('demo_tickets', {
 }));
 
 export type ConnectWiseCacheResource =
+  | 'company'
+  | 'invoices'
   | 'people'
   | 'devices'
   | 'tickets'

@@ -12,7 +12,7 @@ The project is a React SPA plus a Fastify API. It runs without external services
 
 ## Persistence
 
-The SQLite schema contains portal configuration, optional vendor organization mappings, mutable demo tables, user- and tenant-scoped assistant conversations, the global product catalog, latest per-tenant sales analyses, and simulated ConnectWise handoffs. Vendor credentials are never persisted.
+The SQLite schema contains portal configuration, optional vendor organization mappings, mutable demo tables, user- and tenant-scoped assistant conversations, the global product catalog, latest per-tenant sales analyses, fingerprinted churn narratives, and simulated ConnectWise handoffs. Vendor credentials are never persisted.
 
 Migrations run at backend startup. Transactional versioned seeds independently initialize the core demo and product catalog. Catalog version upgrades replace the prior seeded catalog once, after which later admin edits and deletions remain preserved until another explicit catalog version is introduced. Tests use a fresh `:memory:` database.
 
@@ -38,19 +38,22 @@ The local demo provider resolves seeded users by email and issues in-memory bear
 - `/api/admin/clients`, `/api/admin/users`, `/api/admin/action-defs`
 - `/api/admin/product-catalog`
 - `/api/assistant/status`, `/api/assistant/conversations`, and conversation message/history routes
+- Admin-only `/api/customer-churn`, `/api/customer-churn/:tenantId`, and narrative-regeneration routes
 - `/api/sales-opportunities/status`, `/context`, `/latest`, `/analyze`, and simulated handoff routes
 
 All portal data requests are tenant-scoped with `x-tenant-id`. Components access data through the interfaces in `src/services/types.ts` and `useServices()`.
 
-Assistant routes additionally require a valid bearer token. The server resolves tenant grants and the matching client persona before exposing read-only search/list/get tools to the model. Client users cannot retrieve budget or QBR data, see other requesters' tickets or form submissions, or receive internal ticket content.
+Assistant routes additionally require a valid bearer token. The server resolves tenant grants and the matching client persona before exposing read-only search/list/get tools to the model. Client users cannot retrieve budget, QBR, or churn data, see other requesters' tickets or form submissions, or receive internal ticket content. Editors also cannot retrieve churn data; churn is restricted to the exact `admin` role.
 
-Sales opportunity routes require an `admin` or `editor` identity and always analyze one tenant at a time. The browser orchestrates all-client runs with bounded concurrency. For a mapped tenant, the model receives read-only ConnectWise agreements and tickets; otherwise it receives the demo equivalents. Churn data and enabled catalog entries remain local. Returned evidence identifiers are validated before persistence, and catalog pricing is calculated deterministically on the server. Product-catalog mutation remains admin-only.
+Sales opportunity routes require an `admin` or `editor` identity and always analyze one tenant at a time. The browser orchestrates all-client runs with bounded concurrency. For a mapped tenant, the model receives read-only ConnectWise agreements and tickets; otherwise it receives the demo equivalents. Admin analyses receive the same server-owned churn assessment shown on the Churn page; editor analyses receive no churn data. Returned evidence identifiers are validated before persistence, and catalog pricing is calculated deterministically on the server. Product-catalog mutation remains admin-only.
 
 ## Vendor reads and fallback
 
-- ConnectWise uses Basic API-member authentication plus the required `clientId` header. Contacts, configurations, tickets, notes, time entries, documents, agreements, and additions are retrieved only with `GET` requests.
+- ConnectWise uses Basic API-member authentication plus the required `clientId` header. Companies, contacts, configurations, tickets, notes, time entries, documents, agreements, additions, invoices, and invoice payments are retrieved only with `GET` requests.
 - ConnectWise list scoping uses the documented URL-encoded `conditions` expression and slash-reference form, for example `company/id = 123`.
-- ConnectWise ticket reads add `dateEntered >= [<UTC cutoff>]` to the company condition, limiting portal, assistant, and sales-opportunity ticket data to the trailing 365 days.
+- ConnectWise ticket reads include tickets entered in the trailing 365 days plus every currently open ticket. Churn uses all current open tickets and trailing-90-day closed/SLA activity.
+- Churn scoring is deterministic. Account age, receivables, payment timing, SLA, and case counts use the five-minute normalized ConnectWise cache when available; missing fields and repeat-case count use labeled neutral demo defaults. Unmapped tenants retain their seeded assessments.
+- OpenAI writes only the assessment narrative and suggested actions. Narratives are persisted by deterministic input fingerprint, reused while inputs are unchanged, and may be explicitly regenerated by an administrator.
 - Ticket detail reads `/time/entries` with `chargeToType = "ServiceTicket" AND chargeToId = <ticket id>`. Customer-facing time notes appear in the conversation with logged hours; internal time notes remain staff-only.
 - Admin company search calls `GET /company/companies` with a URL-encoded condition such as `(name contains "Acme" OR identifier contains "Acme") AND deletedFlag = false`. Import re-fetches the company by ID on the server, creates a local `cw-{companyId}` tenant with generated branding, and persists the mapping in SQLite.
 - NinjaOne uses the OAuth client-credentials flow with the read-only `monitoring` scope. Device scoping uses the documented URL-encoded `df` expression, for example `org = 456`.

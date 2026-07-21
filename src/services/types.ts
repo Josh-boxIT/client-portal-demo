@@ -272,6 +272,8 @@ export interface Ticket {
   category: string;
   messages: TicketMessage[];
   attachments?: TicketAttachment[];
+  /** ConnectWise's current SLA evaluation, when the vendor returned one. */
+  isInSla?: boolean;
 }
 
 // ─── Sales opportunities / generated ConnectWise agreements ─────────────────
@@ -906,6 +908,12 @@ export interface SalesOpportunityService {
   sendToConnectWise(tenantId: string, fingerprint: string): Promise<SalesOpportunityFinding>;
 }
 
+export interface CustomerChurnService {
+  list(tenantId: string): Promise<import('@/data/seed/customerChurn').ChurnAssessment[]>;
+  get(tenantId: string): Promise<import('@/data/seed/customerChurn').ChurnAssessment | null>;
+  regenerate(tenantId: string): Promise<import('@/data/seed/customerChurn').ChurnAssessment>;
+}
+
 // ─── Prefetch / drilldown cache controller ────────────────────────────────────
 
 /** Synchronous cache snapshot for the People & Devices "Person detail" panel. */
@@ -966,5 +974,6 @@ export interface Services {
   assistant: AssistantService;
   backlogIntelligence: BacklogIntelligenceService;
   salesOpportunities: SalesOpportunityService;
+  customerChurn: CustomerChurnService;
   prefetch: PrefetchController;
 }

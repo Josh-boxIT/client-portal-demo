@@ -71,8 +71,10 @@ function headers(value: string, tenantId = 'brightwater') {
 describe('sales opportunity API', () => {
   it('is staff-only and supplies tenant-scoped agreement, ticket, churn, and catalog data', async () => {
     const admin = await token('alex.morgan@boxit.demo');
+    const editor = await token('editor@boxit.demo');
     const viewer = await token('sarah.okonkwo@brightwaterlogistics.com');
     expect((await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers(viewer) })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers(editor) })).json().churn).toBeNull();
 
     const context = await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers(admin) });
     expect(context.statusCode).toBe(200);
@@ -104,6 +106,16 @@ describe('sales opportunity API', () => {
     });
     expect(findings[1]).toMatchObject({ monthlyValueLow: null, monthlyValueHigh: null });
     expect(findings.some((finding: { title: string }) => finding.title === 'Fabricated finding')).toBe(false);
+
+    const editor = await token('editor@boxit.demo');
+    const editorLatest = await app.inject({
+      method: 'GET', url: '/api/sales-opportunities/latest', headers: headers(editor),
+    });
+    expect(editorLatest.json().sourceSummary.churnScore).toBeNull();
+    expect(editorLatest.json().findings).toHaveLength(1);
+    expect(editorLatest.json().findings[0].evidence.every(
+      (item: { sourceType: string }) => item.sourceType !== 'churn',
+    )).toBe(true);
   });
 
   it('persists idempotent handoffs across analysis reruns', async () => {

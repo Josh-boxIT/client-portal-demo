@@ -17,6 +17,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   staffOnly?: boolean;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
@@ -49,7 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'INSIGHTS',
     items: [
       { label: 'Reports & metrics', href: '/reports', icon: <BarChart3 className="h-4 w-4" /> },
-      { label: 'Customer Churn', href: '/customer-churn', icon: <UserMinus className="h-4 w-4" /> },
+      { label: 'Customer Churn', href: '/customer-churn', icon: <UserMinus className="h-4 w-4" />, adminOnly: true },
       {
         label: 'Queue Attention',
         href: '/queue-attention',
@@ -92,6 +93,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
   const phone = tenant?.supportPhone ?? '';
   const hours = tenant?.supportHours ?? '';
   const isStaff = identity?.role === 'admin' || identity?.role === 'editor';
+  const isAdmin = identity?.role === 'admin';
 
   function handleNavClick() {
     if (onClose) onClose();
@@ -123,7 +125,8 @@ export function Sidebar({ className, onClose }: SidebarProps) {
               {group.label}
             </div>
             <ul className="space-y-0.5">
-              {group.items.filter((item) => !item.staffOnly || isStaff).map((item) => (
+              {group.items.filter((item) =>
+                (!item.staffOnly || isStaff) && (!item.adminOnly || isAdmin)).map((item) => (
                 <li key={item.href}>
                   <NavLink
                     to={item.href}

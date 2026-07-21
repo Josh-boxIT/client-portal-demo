@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '../db/client';
 import { openTestDb } from '../db/test-db';
 import { buildApp } from '../app';
-import { adminUsersRepo } from '../db/repositories';
+import { adminUsersRepo, assistantRepo } from '../db/repositories';
 import type {
   AssistantModelInput,
   AssistantModelProvider,
@@ -208,7 +208,7 @@ describe('permission-aware assistant API', () => {
     expect(provider.captured['form-submissions']).toEqual([]);
   });
 
-  it('searches every granted client instead of only the selected client', async () => {
+  it('does not expose churn while searching a client user\'s granted tenants', async () => {
     const provider = new NewDataCaptureProvider();
     const app = await makeApp(provider);
     await adminUsersRepo(app.db).setClientAccess('demo-client-admin', ['brightwater', 'northwind']);
@@ -224,21 +224,14 @@ describe('permission-aware assistant API', () => {
     });
 
     expect(provider.calls).toHaveLength(1);
-    expect(provider.calls[0].churn.map((record) => record.tenantId)).toEqual([
-      'brightwater',
-      'northwind',
-    ]);
-    expect(provider.calls[0].churn.map((record) => record.clientName)).toEqual([
-      'Brightwater Logistics',
-      'Northwind Health Partners',
-    ]);
+    expect(provider.calls[0].churn).toEqual([]);
     const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
     expect(completed?.message).toMatchObject({
-      citations: [{ tenantId: 'brightwater' }],
+      citations: [],
     });
   });
 
-  it('exposes tenant churn data to client users without exposing Queue Attention', async () => {
+  it('does not expose churn or Queue Attention to client users', async () => {
     const provider = new NewDataCaptureProvider();
     const app = await makeApp(provider);
     const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
@@ -252,21 +245,46 @@ describe('permission-aware assistant API', () => {
     });
 
     expect(provider.calls).toHaveLength(1);
-    expect(provider.calls[0].churn).toHaveLength(1);
-    expect(provider.calls[0].churn[0]).toMatchObject({
-      sourceId: 'brightwater:customer-churn:assessment',
-      tenantId: 'brightwater',
-      clientName: 'Brightwater Logistics',
-      domain: 'customer-churn',
-      href: '/customer-churn',
-      data: { score: 68 },
-    });
+    expect(provider.calls[0].churn).toEqual([]);
     expect(provider.calls[0].queueAttention).toEqual([]);
     expect(provider.calls[0].queueSearch).toEqual([]);
 
     const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
     expect(completed?.message).toMatchObject({
-      citations: [{ recordType: 'customer-churn', href: '/customer-churn', tenantId: 'brightwater' }],
+      citations: [],
+    });
+  });
+
+  it('redacts historical churn answers from client conversation history', async () => {
+    const app = await makeApp(new NewDataCaptureProvider());
+    const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    await assistantRepo(app.db).persistTurn({
+      userId: 'demo-client-user',
+      tenantId: 'brightwater',
+      conversationId: created.json().id,
+      requestId: 'historical-churn',
+      userContent: 'What is our churn risk?',
+      assistantContent: 'The historical score was 68.',
+      citations: [{
+        sourceId: 'brightwater:customer-churn:assessment',
+        recordType: 'customer-churn',
+        recordId: 'assessment',
+        title: 'Customer churn assessment',
+        href: '/customer-churn',
+        tenantId: 'brightwater',
+      }],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+    });
+    expect(response.json()[1]).toMatchObject({
+      content: 'This historical churn response is available only to administrators.',
+      citations: [],
     });
   });
 
