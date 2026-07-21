@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDb, runMigrations } from './client';
-import { seedIfEmpty } from './seed';
-import { actionDefs, adminUsers, tenants } from './schema';
+import { seedIfEmpty, seedProductCatalogIfEmpty } from './seed';
+import { actionDefs, adminUsers, productCatalog, tenants } from './schema';
 import { demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo, tenantRepo } from './repositories';
 import type { FormSubmission, Ticket } from '@/services/types';
 
@@ -20,9 +20,12 @@ describe('SQLite demo persistence', () => {
     runMigrations(db);
     expect(await seedIfEmpty(db)).toEqual({ seeded: true });
     expect(await seedIfEmpty(db)).toEqual({ seeded: false });
+    expect(await seedProductCatalogIfEmpty(db)).toEqual({ seeded: true });
+    expect(await seedProductCatalogIfEmpty(db)).toEqual({ seeded: false });
     expect(db.select().from(tenants).all()).toHaveLength(3);
     expect(db.select().from(adminUsers).all()).toHaveLength(3);
     expect(db.select().from(actionDefs).all()).toHaveLength(24);
+    expect(db.select().from(productCatalog).all()).toHaveLength(8);
 
     await tenantRepo(db).update('brightwater', { name: 'Edited Demo Client' });
     await seedIfEmpty(db);

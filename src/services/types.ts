@@ -270,6 +270,112 @@ export interface Ticket {
   attachments?: TicketAttachment[];
 }
 
+// ─── Sales opportunities / generated ConnectWise agreements ─────────────────
+
+export type ProductPricingModel = 'flat' | 'per-user' | 'per-device';
+
+export interface ProductCatalogItem {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  aliases: string[];
+  pricingModel: ProductPricingModel;
+  monthlyPriceLow: number;
+  monthlyPriceHigh: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgreementLineItem {
+  id: string;
+  productCatalogId?: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  monthlyAmount: number;
+}
+
+export interface ConnectWiseAgreement {
+  id: string;
+  tenantId: string;
+  externalId: string;
+  name: string;
+  type: string;
+  status: 'active' | 'expiring' | 'expired';
+  startDate: string;
+  endDate: string;
+  autoRenew: boolean;
+  renewalNoticeDays: number;
+  billingCycle: 'monthly' | 'quarterly' | 'annual';
+  monthlyAmount: number;
+  currency: 'USD';
+  coveredUsers: number;
+  coveredDevices: number;
+  sla: string;
+  contractContacts: Array<{ name: string; role: string; email: string }>;
+  addOns: string[];
+  exclusions: string[];
+  lineItems: AgreementLineItem[];
+  sourceUpdatedAt: string;
+}
+
+export type SalesOpportunityKind = 'gap' | 'expansion' | 'renewal' | 'retention' | 'other';
+export type SalesOpportunityPriority = 'high' | 'medium' | 'low';
+
+export interface SalesOpportunityEvidence {
+  sourceType: 'agreement' | 'ticket' | 'churn';
+  sourceId: string;
+  label: string;
+  href: string;
+}
+
+export interface SalesOpportunityFinding {
+  fingerprint: string;
+  tenantId: string;
+  catalogProductId?: string;
+  title: string;
+  category: string;
+  kind: SalesOpportunityKind;
+  priority: SalesOpportunityPriority;
+  confidence: number;
+  monthlyValueLow: number | null;
+  monthlyValueHigh: number | null;
+  rationale: string;
+  suggestedApproach: string;
+  evidence: SalesOpportunityEvidence[];
+  sentAt?: string;
+  sentBy?: string;
+}
+
+export interface SalesOpportunityAnalysis {
+  tenantId: string;
+  analyzedAt: string;
+  model: string;
+  sourceSummary: {
+    agreementCount: number;
+    ticketCount: number;
+    catalogProductCount: number;
+    churnScore: number | null;
+  };
+  findings: SalesOpportunityFinding[];
+}
+
+export interface SalesOpportunityContext {
+  tenantId: string;
+  tenantName: string;
+  agreements: ConnectWiseAgreement[];
+  ticketCount: number;
+  churn: {
+    score: number;
+    assessment: string;
+    suggestedActions: string;
+    assessedAt: string;
+  } | null;
+}
+
 export interface CreateTicketInput {
   subject: string;
   priority: TicketPriority;
@@ -785,6 +891,14 @@ export interface BacklogIntelligenceService {
   getSnapshot(): Promise<BacklogIntelligenceSnapshot>;
 }
 
+export interface SalesOpportunityService {
+  status(tenantId: string): Promise<{ enabled: boolean }>;
+  context(tenantId: string): Promise<SalesOpportunityContext>;
+  latest(tenantId: string): Promise<SalesOpportunityAnalysis | null>;
+  analyze(tenantId: string): Promise<SalesOpportunityAnalysis>;
+  sendToConnectWise(tenantId: string, fingerprint: string): Promise<SalesOpportunityFinding>;
+}
+
 // ─── Prefetch / drilldown cache controller ────────────────────────────────────
 
 /** Synchronous cache snapshot for the People & Devices "Person detail" panel. */
@@ -844,5 +958,6 @@ export interface Services {
   activity: ActivityService;
   assistant: AssistantService;
   backlogIntelligence: BacklogIntelligenceService;
+  salesOpportunities: SalesOpportunityService;
   prefetch: PrefetchController;
 }

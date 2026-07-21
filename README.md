@@ -42,9 +42,9 @@ To override the API host, port, or database location, copy the example first:
 cp .env.example .env
 ```
 
-### Optional AI assistant
+### Optional AI features
 
-The portal hides its permission-aware AI assistant unless an OpenAI API key is configured. The assistant is the demo's only live external service; it can only search server-filtered sample records and cannot change portal data.
+The portal hides its permission-aware AI assistant and disables new Sales Opportunities analysis unless an OpenAI API key is configured. OpenAI is the demo's only live external service. The assistant can only search server-filtered sample records, while the staff-only opportunity agent produces structured, evidence-backed findings from generated agreements, tickets, churn data, and the admin product catalog. Neither feature can change external systems.
 
 ```bash
 export OPENAI_API_KEY="your-api-key"
@@ -54,7 +54,7 @@ export OPENAI_REASONING_EFFORT="low"
 npm run dev
 ```
 
-Conversation history remains in the local SQLite database and is separated by signed-in user and tenant. The API key is read only by the Fastify server and is never sent to the browser.
+Conversation history and each client's latest opportunity analysis remain in the local SQLite database. The API key is read only by the Fastify server and is never sent to the browser.
 
 After making changes, run the same checks used to validate the project:
 
@@ -95,7 +95,7 @@ Authentication is deliberately local and demo-only. Sessions are kept in memory 
 - **Cedar & Vine Hospitality** — hospitality, amber/forest branding.
 - **Northwind Health Partners** — healthcare, teal/blue branding.
 
-Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, assets, roadmaps, QBRs, budgets, risks, reports, documents, forms, apps, news, and activity.
+Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, generated ConnectWise agreements, assets, roadmaps, QBRs, budgets, risks, reports, documents, forms, apps, news, and activity.
 
 SQLite persists:
 
@@ -105,6 +105,7 @@ SQLite persists:
 - Tickets created directly or through an action wizard.
 - Form submissions.
 - Permission-aware assistant conversations and messages.
+- The global sales product catalog, latest per-client opportunity analyses, and simulated ConnectWise handoff ledger.
 - Admin audit events.
 
 Created tickets are merged with the canonical ticket samples. Form submissions are scoped to the active client persona. Other transient interface state, such as dismissed banners and the current activity overlay, resets with the browser session.
@@ -116,7 +117,7 @@ Created tickets are merged with the canonical ticket samples. Form submissions a
 - **Immutable domain data:** typed sample services behind `useServices()`.
 - **Mutable demo data:** same-origin REST services backed by SQLite.
 - **Multi-tenancy:** every service call and persisted record is scoped by tenant ID.
-- **Permission-aware AI:** optional, read-only OpenAI-powered conversations grounded in each user's permitted demo records.
+- **Permission-aware AI:** optional OpenAI-powered conversations plus staff-only structured sales analysis grounded in permitted demo records.
 
 The portal has one permanent sample-only service graph. There is no live-data switch or connector registry. Components continue to consume typed service interfaces rather than importing persistence details.
 
@@ -138,6 +139,7 @@ Alex Morgan can open **Admin** from the user menu:
 
 - **Clients:** edit the three demo clients' display metadata and branding tokens.
 - **Users:** create, edit, disable, and grant client access to local demo identities.
+- **Products:** configure the global offerings and demo pricing assumptions used by Sales Opportunities.
 - **Actions:** available from the portal's Actions page for editing tenant-specific self-service workflows.
 
-Integration, connection, import, synchronization, and SSO surfaces are intentionally absent from this demo.
+Integration, connection, import, synchronization, and SSO surfaces are intentionally absent from this demo. ConnectWise agreement pulls and opportunity sends are explicitly simulated and never make vendor API calls.

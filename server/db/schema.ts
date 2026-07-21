@@ -8,6 +8,9 @@ import type {
   Ticket,
   TicketMessage,
   TicketStatus,
+  ProductPricingModel,
+  SalesOpportunityAnalysis,
+  SalesOpportunityFinding,
 } from '@/services/types';
 
 export const now = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
@@ -91,6 +94,44 @@ export const actionDefs = sqliteTable('action_defs', {
   tenantKeyUnique: uniqueIndex('action_defs_tenant_key_uq').on(table.tenantId, table.key),
 }));
 
+export const productCatalog = sqliteTable('product_catalog', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  normalizedName: text('normalized_name').notNull(),
+  category: text('category').notNull(),
+  description: text('description').notNull(),
+  aliases: text('aliases', { mode: 'json' }).$type<string[]>().notNull(),
+  pricingModel: text('pricing_model').$type<ProductPricingModel>().notNull(),
+  monthlyPriceLow: integer('monthly_price_low').notNull(),
+  monthlyPriceHigh: integer('monthly_price_high').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(now),
+  updatedAt: text('updated_at').notNull().default(now),
+}, (table) => ({
+  normalizedNameUnique: uniqueIndex('product_catalog_normalized_name_uq').on(table.normalizedName),
+}));
+
+export const salesOpportunityAnalyses = sqliteTable('sales_opportunity_analyses', {
+  tenantId: text('tenant_id').primaryKey().references(() => tenants.id),
+  analyzedAt: text('analyzed_at').notNull(),
+  model: text('model').notNull(),
+  sourceSummary: text('source_summary', { mode: 'json' }).$type<SalesOpportunityAnalysis['sourceSummary']>().notNull(),
+  findings: text('findings', { mode: 'json' }).$type<SalesOpportunityFinding[]>().notNull(),
+  updatedAt: text('updated_at').notNull().default(now),
+});
+
+export const salesOpportunityHandoffs = sqliteTable('sales_opportunity_handoffs', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  fingerprint: text('fingerprint').notNull(),
+  sentAt: text('sent_at').notNull(),
+  sentBy: text('sent_by').notNull(),
+  payload: text('payload', { mode: 'json' }).$type<SalesOpportunityFinding>().notNull(),
+}, (table) => ({
+  tenantFingerprintUnique: uniqueIndex('sales_opportunity_handoff_tenant_fingerprint_uq')
+    .on(table.tenantId, table.fingerprint),
+}));
+
 export const demoTickets = sqliteTable('demo_tickets', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
@@ -163,3 +204,7 @@ export type DemoTicketRow = typeof demoTickets.$inferSelect;
 export type FormSubmissionRow = typeof formSubmissions.$inferSelect;
 export type AssistantConversationRow = typeof assistantConversations.$inferSelect;
 export type AssistantMessageRow = typeof assistantMessages.$inferSelect;
+export type ProductCatalogRow = typeof productCatalog.$inferSelect;
+export type NewProductCatalogRow = typeof productCatalog.$inferInsert;
+export type SalesOpportunityAnalysisRow = typeof salesOpportunityAnalyses.$inferSelect;
+export type SalesOpportunityHandoffRow = typeof salesOpportunityHandoffs.$inferSelect;

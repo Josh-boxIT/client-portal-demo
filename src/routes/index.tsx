@@ -4,6 +4,7 @@ import { LoginPage } from '@/features/login/LoginPage';
 import { AdminShell } from '@/admin/AdminShell';
 import { ClientsPage } from '@/admin/pages/ClientsPage';
 import { UsersPage } from '@/admin/pages/UsersPage';
+import { ProductsPage } from '@/admin/pages/ProductsPage';
 import { QueueAttentionPage } from '@/admin/pages/QueueAttentionPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ActionsPage } from '@/features/actions/ActionsPage';
@@ -28,6 +29,7 @@ import { DocumentDetailPage } from '@/features/documents/DocumentDetailPage';
 import { FormsPage } from '@/features/forms/FormsPage';
 import { NewsPage } from '@/features/news/NewsPage';
 import { NewsDetailPage } from '@/features/news/NewsDetailPage';
+import { SalesOpportunitiesPage } from '@/features/sales-opportunities/SalesOpportunitiesPage';
 
 export const router = createBrowserRouter([
   {
@@ -57,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'customer-churn/:customerId', element: <CustomerChurnPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'queue-attention', element: <QueueAttentionPage /> },
+      { path: 'sales-opportunities', element: <SalesOpportunitiesPage /> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'documents/:id', element: <DocumentDetailPage /> },
       { path: 'forms', element: <FormsPage /> },
@@ -75,6 +78,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="clients" replace /> },
       { path: 'clients', element: <ClientsPage /> },
       { path: 'users', element: <UsersPage /> },
+      { path: 'products', element: <ProductsPage /> },
     ],
   },
   {

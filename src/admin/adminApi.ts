@@ -8,6 +8,9 @@ import type {
   TenantThemeTokens,
   UpdateActionDefPatch,
   UpdateUserPatch,
+  ProductCatalogDto,
+  ProductCatalogInput,
+  ProductCatalogPatch,
 } from './types';
 
 const BASE = '/api/admin';
@@ -60,5 +63,17 @@ export const adminApi = {
   },
   deleteActionDef(id: string): Promise<void> {
     return request<void>(`/action-defs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  productCatalog(): Promise<ProductCatalogDto[]> {
+    return request<ProductCatalogDto[]>('/product-catalog');
+  },
+  createProduct(input: ProductCatalogInput): Promise<ProductCatalogDto> {
+    return request<ProductCatalogDto>('/product-catalog', { method: 'POST', body: JSON.stringify(input) });
+  },
+  updateProduct(id: string, patch: ProductCatalogPatch): Promise<ProductCatalogDto> {
+    return request<ProductCatalogDto>(`/product-catalog/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  },
+  deleteProduct(id: string): Promise<void> {
+    return request<void>(`/product-catalog/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };

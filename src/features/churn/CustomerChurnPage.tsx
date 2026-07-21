@@ -78,7 +78,6 @@ export function CustomerChurnPage() {
   if (!customer || !assessment) {
     return <Navigate to="/customer-churn" replace />;
   }
-
   const tone = getRiskTone(assessment.score);
 
   return (

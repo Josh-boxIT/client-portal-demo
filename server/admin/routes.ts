@@ -21,6 +21,14 @@ import {
   type CreateActionDefInput,
   type UpdateActionDefPatch,
 } from './action-defs.controller';
+import {
+  createProduct,
+  deleteProduct,
+  listProductCatalog,
+  updateProduct,
+  type ProductCatalogInput,
+  type ProductCatalogPatch,
+} from './product-catalog.controller';
 
 export function registerAdminRoutes(app: FastifyInstance, configStore: ConfigStore): void {
   app.get('/api/admin/clients', { preHandler: requireRole('admin', 'editor') }, async () => {
@@ -69,6 +77,27 @@ export function registerAdminRoutes(app: FastifyInstance, configStore: ConfigSto
   });
   app.delete('/api/admin/action-defs/:id', { preHandler: requireRole('admin', 'editor') }, async (req, reply) => {
     await deleteActionDef(actionDeps(req.adminIdentity!.email), (req.params as { id: string }).id);
+    return reply.status(204).send();
+  });
+
+  app.get('/api/admin/product-catalog', { preHandler: requireRole('admin') }, async () => {
+    return listProductCatalog(app.db);
+  });
+  app.post('/api/admin/product-catalog', { preHandler: requireRole('admin') }, async (req, reply) => {
+    return reply.status(201).send(await createProduct(
+      app.db, req.body as ProductCatalogInput, req.adminIdentity!.email,
+    ));
+  });
+  app.patch('/api/admin/product-catalog/:id', { preHandler: requireRole('admin') }, async (req) => {
+    return updateProduct(
+      app.db,
+      (req.params as { id: string }).id,
+      req.body as ProductCatalogPatch,
+      req.adminIdentity!.email,
+    );
+  });
+  app.delete('/api/admin/product-catalog/:id', { preHandler: requireRole('admin') }, async (req, reply) => {
+    await deleteProduct(app.db, (req.params as { id: string }).id, req.adminIdentity!.email);
     return reply.status(204).send();
   });
 

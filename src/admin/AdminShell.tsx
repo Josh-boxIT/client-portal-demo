@@ -59,7 +59,10 @@ export function AdminShell() {
 
   const navItems: NavItem[] = [
     ...NAV_ITEMS,
-    ...(identity.role === 'admin' ? [{ to: '/admin/users', label: 'Users' }] : []),
+    ...(identity.role === 'admin' ? [
+      { to: '/admin/products', label: 'Products' },
+      { to: '/admin/users', label: 'Users' },
+    ] : []),
   ];
 
   async function handleLogout() {

@@ -1,4 +1,4 @@
-import type { ActionDef, ActionStep, ActionTicketConfig } from '@/services/types';
+import type { ActionDef, ActionStep, ActionTicketConfig, ProductCatalogItem, ProductPricingModel } from '@/services/types';
 
 export type AdminRole = 'admin' | 'editor' | 'viewer';
 
@@ -72,3 +72,18 @@ export interface UpdateActionDefPatch {
   steps?: ActionStep[];
   ticket?: ActionTicketConfig;
 }
+
+export type ProductCatalogDto = ProductCatalogItem;
+
+export interface ProductCatalogInput {
+  name: string;
+  category: string;
+  description: string;
+  aliases: string[];
+  pricingModel: ProductPricingModel;
+  monthlyPriceLow: number;
+  monthlyPriceHigh: number;
+  enabled?: boolean;
+}
+
+export type ProductCatalogPatch = Partial<ProductCatalogInput>;

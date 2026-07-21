@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { getDb, runMigrations, type AppDb } from './db/client';
-import { seedIfEmpty } from './db/seed';
+import { seedIfEmpty, seedProductCatalogIfEmpty } from './db/seed';
 import { ConfigStore } from './framework/config-store';
 import { FakeAdminAuthProvider } from './admin/auth/fake';
 import { registerSessionAuth } from './auth/plugin';
@@ -11,12 +11,15 @@ import { registerApiRoutes } from './api';
 import { loadEnv, type ServerEnv } from './config/env';
 import { OpenAIAssistantProvider, type AssistantModelProvider } from './assistant/provider';
 import { registerAssistantRoutes } from './assistant/routes';
+import { OpenAISalesOpportunityProvider, type SalesOpportunityModelProvider } from './sales-opportunities/provider';
+import { registerSalesOpportunityRoutes } from './sales-opportunities/routes';
 
 export interface BuildAppOptions {
   env?: ServerEnv;
   logger?: boolean;
   db?: AppDb;
   assistantProvider?: AssistantModelProvider | null;
+  salesOpportunityProvider?: SalesOpportunityModelProvider | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -28,6 +31,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const db = options.db ?? opened!.db;
   runMigrations(db);
   await seedIfEmpty(db);
+  await seedProductCatalogIfEmpty(db);
 
   const configStore = new ConfigStore(db);
   await configStore.reload();
@@ -45,6 +49,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       ? new OpenAIAssistantProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
       : null;
   registerAssistantRoutes(app, { provider: assistantProvider });
+  const salesOpportunityProvider = Object.prototype.hasOwnProperty.call(options, 'salesOpportunityProvider')
+    ? options.salesOpportunityProvider ?? null
+    : env.openAiApiKey
+      ? new OpenAISalesOpportunityProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
+      : null;
+  registerSalesOpportunityRoutes(app, salesOpportunityProvider);
 
   if (opened) app.addHook('onClose', async () => opened.raw.close());
   return app;
