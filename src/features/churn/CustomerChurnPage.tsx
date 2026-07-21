@@ -1,106 +1,27 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import {
+  ArrowLeft,
   Archive,
   CalendarDays,
   CheckCircle2,
   CreditCard,
   Inbox,
+  ListChecks,
   ReceiptText,
   Repeat2,
   Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/store/auth';
+import { useTenantStore } from '@/theme/tenantStore';
 import { cn } from '@/lib/utils';
-
-interface ChurnAssessment {
-  score: number;
-  narrative: string;
-  accountAgeYears: number;
-  creditLimitUsagePercent: number;
-  daysPastDue: number;
-  onTimePaymentRatio: number;
-  openCases: number;
-  closedCases: number;
-  repeatCases: number;
-}
-
-const assessments: Record<string, ChurnAssessment> = {
-  brightwater: {
-    score: 68,
-    narrative:
-      'This account has a high risk of churn. Credit utilization is elevated and the oldest unpaid invoice is 18 days past due. Support demand is also persistent: five cases remain open and three issues have repeated during the last 90 days. The account has meaningful tenure and a solid payment history, which moderates the risk, but proactive outreach should focus on the overdue balance and recurring service issues.',
-    accountAgeYears: 8.4,
-    creditLimitUsagePercent: 74,
-    daysPastDue: 18,
-    onTimePaymentRatio: 82,
-    openCases: 5,
-    closedCases: 12,
-    repeatCases: 3,
-  },
-  cedarvine: {
-    score: 42,
-    narrative:
-      'This account has a moderate risk of churn. Payment behavior is generally healthy, with a strong on-time payment ratio and limited credit usage. A small overdue balance and three open service cases create some short-term friction, but repeat case volume remains low. Continue routine engagement and resolve the open cases before they become recurring issues.',
-    accountAgeYears: 5.8,
-    creditLimitUsagePercent: 48,
-    daysPastDue: 6,
-    onTimePaymentRatio: 91,
-    openCases: 3,
-    closedCases: 16,
-    repeatCases: 1,
-  },
-  northwind: {
-    score: 81,
-    narrative:
-      'This account has a critical risk of churn. High credit utilization, a significantly overdue invoice, and a declining on-time payment ratio point to financial stress. Seven open cases and four repeat issues indicate unresolved service friction. Immediate account-owner outreach is recommended, with a joint payment and support recovery plan focused on the oldest invoice and repeated case themes.',
-    accountAgeYears: 11.2,
-    creditLimitUsagePercent: 89,
-    daysPastDue: 34,
-    onTimePaymentRatio: 71,
-    openCases: 7,
-    closedCases: 9,
-    repeatCases: 4,
-  },
-};
-
-const fallbackAssessment = assessments.brightwater;
-
-function getRiskTone(score: number) {
-  if (score >= 80) {
-    return {
-      label: 'Critical risk',
-      badgeClass: 'border-red-200 bg-red-100 text-red-800',
-      scoreClass: 'text-red-600',
-      ring: '#dc2626',
-    };
-  }
-  if (score >= 60) {
-    return {
-      label: 'High risk',
-      badgeClass: 'border-orange-200 bg-orange-100 text-orange-800',
-      scoreClass: 'text-orange-600',
-      ring: '#ea580c',
-    };
-  }
-  if (score >= 30) {
-    return {
-      label: 'Moderate risk',
-      badgeClass: 'border-amber-200 bg-amber-100 text-amber-800',
-      scoreClass: 'text-amber-600',
-      ring: '#d97706',
-    };
-  }
-  return {
-    label: 'Low risk',
-    badgeClass: 'border-green-200 bg-green-100 text-green-800',
-    scoreClass: 'text-green-600',
-    ring: '#16a34a',
-  };
-}
+import { formatAssessmentDate, getAccessibleChurnRows, getRiskTone } from './churnData';
 
 interface MetricCardProps {
   label: string;
@@ -139,16 +60,41 @@ function MetricCard({
 }
 
 export function CustomerChurnPage() {
-  const { activeTenantId } = useSessionStore();
-  const assessment = assessments[activeTenantId] ?? fallbackAssessment;
+  const { customerId = '' } = useParams();
+  const { activeTenantId, switchTenant } = useSessionStore();
+  const { identity, accessibleClientIds } = useAuthStore();
+  const { tenants } = useTenantStore();
+  const row = getAccessibleChurnRows(identity, accessibleClientIds, tenants)
+    .find(({ customer }) => customer.id === customerId);
+  const customer = row?.customer;
+  const assessment = row?.assessment;
+
+  useEffect(() => {
+    if (customer && activeTenantId !== customer.id) {
+      switchTenant(customer.id);
+    }
+  }, [activeTenantId, customer, switchTenant]);
+
+  if (!customer || !assessment) {
+    return <Navigate to="/customer-churn" replace />;
+  }
+
   const tone = getRiskTone(assessment.score);
 
   return (
     <div>
       <PageHeader
-        title="Customer Churn"
+        title={`Customer Churn: ${customer.name}`}
         subtitle="AI-assisted account retention risk assessment"
-        actions={<Badge variant="outline">Last assessed Jul 20, 2026</Badge>}
+        leading={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/customer-churn">
+              <ArrowLeft aria-hidden="true" />
+              Return
+            </Link>
+          </Button>
+        }
+        actions={<Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -169,9 +115,32 @@ export function CustomerChurnPage() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-base leading-7 text-foreground/90">{assessment.narrative}</p>
-            <div className="mt-5 rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+          <CardContent className="space-y-6">
+            <section aria-labelledby="assessment-heading">
+              <h3 id="assessment-heading" className="text-sm font-semibold">
+                Assessment
+              </h3>
+              <p className="mt-2 text-base leading-7 text-foreground/90">
+                {assessment.assessment}
+              </p>
+            </section>
+
+            <section
+              className="rounded-lg border border-primary/20 bg-primary/5 p-4"
+              aria-labelledby="suggested-actions-heading"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <ListChecks className="h-4 w-4" aria-hidden="true" />
+                <h3 id="suggested-actions-heading" className="text-sm font-semibold">
+                  Suggested actions
+                </h3>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-foreground/90">
+                {assessment.suggestedActions}
+              </p>
+            </section>
+
+            <div className="rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
               AI-generated assessment. Review source data and account context before taking action.
             </div>
           </CardContent>
