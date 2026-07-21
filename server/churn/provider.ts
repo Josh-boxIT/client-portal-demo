@@ -20,6 +20,31 @@ export interface ChurnNarrativeProvider {
   generate(input: ChurnNarrativeInput): Promise<ChurnNarrativeResult>;
 }
 
+export const CHURN_NARRATIVE_PROMPT_VERSION = '2';
+
+export const CHURN_NARRATIVE_INSTRUCTIONS = `You write concise customer-retention assessments for MSP administrators.
+
+Use only the supplied deterministic score and account metrics. Treat the metrics as the account's current business data. Do not change or recalculate the score. Explain the strongest risk and protective signals. Discuss business conditions only; omit commentary about data collection, provenance, completeness, or internal implementation. Suggest practical account-owner actions. Return two short paragraphs without markdown.`;
+
+export function buildChurnNarrativeModelInput(input: ChurnNarrativeInput) {
+  return {
+    account: { name: input.tenantName },
+    score: input.assessment.score,
+    metrics: {
+      accountAgeYears: input.assessment.accountAgeYears,
+      creditLimitUsagePercent: input.assessment.creditLimitUsagePercent,
+      daysPastDue: input.assessment.daysPastDue,
+      onTimePaymentRatio: input.assessment.onTimePaymentRatio,
+      slaConformancePercent: input.assessment.slaConformancePercent,
+      openCases: input.assessment.openCases,
+      closedCases: input.assessment.closedCases,
+      repeatCases: input.assessment.repeatCases,
+    },
+    windowDays: 90,
+    paymentTermsDays: CHURN_INVOICE_TERMS_DAYS,
+  };
+}
+
 const OUTPUT_FORMAT = {
   type: 'json_schema' as const,
   name: 'customer_churn_narrative',
@@ -51,26 +76,8 @@ export class OpenAIChurnNarrativeProvider implements ChurnNarrativeProvider {
   async generate(input: ChurnNarrativeInput): Promise<ChurnNarrativeResult> {
     const response = await this.client.responses.create({
       model: this.modelName,
-      instructions: `You write concise customer-retention assessments for MSP administrators.
-
-Use only the supplied deterministic score and metrics. Metric source labels are evidence quality indicators: connectwise is live cached PSA data and demo is a neutral fallback. Never imply a demo value came from ConnectWise. Do not change or recalculate the score. Explain the strongest risk and protective signals, mention material fallback limitations naturally, and suggest practical account-owner actions. Return two short paragraphs without markdown.`,
-      input: JSON.stringify({
-        tenant: { id: input.tenantId, name: input.tenantName },
-        score: input.assessment.score,
-        metrics: {
-          accountAgeYears: input.assessment.accountAgeYears,
-          creditLimitUsagePercent: input.assessment.creditLimitUsagePercent,
-          daysPastDue: input.assessment.daysPastDue,
-          onTimePaymentRatio: input.assessment.onTimePaymentRatio,
-          slaConformancePercent: input.assessment.slaConformancePercent,
-          openCases: input.assessment.openCases,
-          closedCases: input.assessment.closedCases,
-          repeatCases: input.assessment.repeatCases,
-        },
-        metricSources: input.assessment.metricSources,
-        windowDays: 90,
-        invoiceTermsDays: CHURN_INVOICE_TERMS_DAYS,
-      }),
+      instructions: CHURN_NARRATIVE_INSTRUCTIONS,
+      input: JSON.stringify(buildChurnNarrativeModelInput(input)),
       text: { format: OUTPUT_FORMAT, verbosity: 'low' },
       reasoning: { effort: this.reasoningEffort },
       max_output_tokens: 1_200,

@@ -6,7 +6,13 @@ import type { Tenant } from '../db/schema';
 import type { ConfigStore } from '../framework/config-store';
 import type { VendorDataService } from '../integrations/vendor-data';
 import { buildChurnAssessment, fallbackChurnNarrative } from './scoring';
-import type { ChurnNarrativeProvider } from './provider';
+import { CHURN_NARRATIVE_PROMPT_VERSION, type ChurnNarrativeProvider } from './provider';
+
+function narrativeFingerprint(assessmentFingerprint: string): string {
+  return createHash('sha256')
+    .update(`${assessmentFingerprint}:${CHURN_NARRATIVE_PROMPT_VERSION}`)
+    .digest('hex').slice(0, 32);
+}
 
 export class ChurnService {
   private readonly repo: ReturnType<typeof churnNarrativeRepo>;
@@ -40,10 +46,11 @@ export class ChurnService {
       return getChurnAssessment(tenant.id) ?? buildChurnAssessment(tenant.id, {});
     }
     const base = buildChurnAssessment(tenant.id, await this.vendorData.churnInputs(tenant));
-    const key = `${tenant.id}:${base.fingerprint}`;
+    const cacheFingerprint = narrativeFingerprint(base.fingerprint!);
+    const key = `${tenant.id}:${cacheFingerprint}`;
     if (!forceNarrative) {
       const cached = await this.repo.get(tenant.id);
-      if (cached && cached.fingerprint === base.fingerprint) return {
+      if (cached && cached.fingerprint === cacheFingerprint) return {
         ...base,
         assessment: cached.assessment,
         suggestedActions: cached.suggestedActions,
@@ -53,7 +60,7 @@ export class ChurnService {
       const pending = this.inFlight.get(key);
       if (pending) return pending;
     }
-    const generated = this.generateNarrative(tenant, base);
+    const generated = this.generateNarrative(tenant, base, cacheFingerprint);
     if (!forceNarrative) this.inFlight.set(key, generated);
     try {
       return await generated;
@@ -62,7 +69,11 @@ export class ChurnService {
     }
   }
 
-  private async generateNarrative(tenant: Tenant, base: ChurnAssessment): Promise<ChurnAssessment> {
+  private async generateNarrative(
+    tenant: Tenant,
+    base: ChurnAssessment,
+    cacheFingerprint: string,
+  ): Promise<ChurnAssessment> {
     const generatedAt = new Date().toISOString();
     let narrative = fallbackChurnNarrative(base);
     let model = 'deterministic';
@@ -82,7 +93,7 @@ export class ChurnService {
     }
     const saved = await this.repo.save({
       tenantId: tenant.id,
-      fingerprint: base.fingerprint!,
+      fingerprint: cacheFingerprint,
       assessment: narrative.assessment,
       suggestedActions: narrative.suggestedActions,
       generatedAt,
