@@ -5,8 +5,6 @@ import { mockLicenseService } from './mock/licenses';
 import { restAssetService } from './rest/assets';
 import { mockRoadmapService } from './mock/roadmap';
 import { mockQBRService } from './mock/qbr';
-import { mockBudgetService } from './mock/budget';
-import { mockRiskService } from './mock/risk';
 import { mockDocumentService } from './mock/documents';
 import { mockNewsService } from './mock/news';
 import { mockActivityService } from './mock/activity';
@@ -30,8 +28,6 @@ export function buildServices(): Services {
     assets: restAssetService,
     roadmap: mockRoadmapService,
     qbr: mockQBRService,
-    budget: mockBudgetService,
-    risk: mockRiskService,
     metrics: demoMetricsService,
     documents: mockDocumentService,
     forms: persistentFormService,

@@ -64,7 +64,7 @@ class PermissionCaptureProvider implements AssistantModelProvider {
   captured: Record<string, PortalRecord[]> = {};
 
   async generate(input: AssistantModelInput): Promise<AssistantModelResult> {
-    for (const domain of ['budgets', 'qbrs', 'tickets', 'form-submissions']) {
+    for (const domain of ['qbrs', 'tickets', 'form-submissions']) {
       this.captured[domain] = await input.executeTool('list_portal_records', { domain, limit: 50 });
     }
     const record = this.captured.tickets[0];
@@ -200,7 +200,6 @@ describe('permission-aware assistant API', () => {
       payload: { content: 'What can I see?', requestId: 'permission-check' },
     });
 
-    expect(provider.captured.budgets).toEqual([]);
     expect(provider.captured.qbrs).toEqual([]);
     expect(provider.captured.tickets.length).toBeGreaterThan(0);
     expect(provider.captured.tickets.every((record) => record.data.requesterId === 'bw-p2')).toBe(true);

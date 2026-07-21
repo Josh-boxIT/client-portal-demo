@@ -44,7 +44,7 @@ The local demo provider resolves seeded users by email and issues in-memory bear
 
 All portal data requests are tenant-scoped with `x-tenant-id`. Components access data through the interfaces in `src/services/types.ts` and `useServices()`.
 
-Assistant routes additionally require a valid bearer token. The server resolves tenant grants and the matching client persona before exposing read-only search/list/get tools to the model. Client users cannot retrieve budget, QBR, or churn data, see other requesters' tickets or form submissions, or receive internal ticket content. Editors also cannot retrieve churn data; churn is restricted to the exact `admin` role.
+Assistant routes additionally require a valid bearer token. The server resolves tenant grants and the matching client persona before exposing read-only search/list/get tools to the model. Client users cannot retrieve QBR or churn data, see other requesters' tickets or form submissions, or receive internal ticket content. Editors also cannot retrieve churn data; churn is restricted to the exact `admin` role.
 
 Sales opportunity routes require an `admin` or `editor` identity and always analyze one tenant at a time. The browser orchestrates all-client runs with bounded concurrency. For a mapped tenant, the model receives read-only ConnectWise agreements and tickets; otherwise it receives the demo equivalents. Admin analyses receive the same server-owned churn assessment shown on the Churn page; editor analyses receive no churn data. Returned evidence identifiers are validated before persistence, and catalog pricing is calculated deterministically on the server. Product-catalog mutation remains admin-only.
 

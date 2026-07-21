@@ -19,8 +19,6 @@ import { LicensesPage } from '@/features/licenses/LicensesPage';
 import { LicenseDetailPage } from '@/features/licenses/LicenseDetailPage';
 import { RoadmapsPage } from '@/features/roadmaps/RoadmapsPage';
 import { QBRsPage } from '@/features/qbrs/QBRsPage';
-import { BudgetPage } from '@/features/budget/BudgetPage';
-import { RiskPage } from '@/features/risk/RiskPage';
 import { CustomerChurnPage } from '@/features/churn/CustomerChurnPage';
 import { CustomerChurnOverviewPage } from '@/features/churn/CustomerChurnOverviewPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
@@ -53,8 +51,6 @@ export const router = createBrowserRouter([
       { path: 'licenses/:id', element: <LicenseDetailPage /> },
       { path: 'roadmaps', element: <RoadmapsPage /> },
       { path: 'qbrs', element: <QBRsPage /> },
-      { path: 'budget', element: <BudgetPage /> },
-      { path: 'risk', element: <RiskPage /> },
       { path: 'customer-churn', element: <CustomerChurnOverviewPage /> },
       { path: 'customer-churn/:customerId', element: <CustomerChurnPage /> },
       { path: 'reports', element: <ReportsPage /> },

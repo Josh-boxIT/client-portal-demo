@@ -27,7 +27,7 @@ import type {
 import { useSessionStore } from '@/store/session';
 
 const STARTERS = [
-  'Which risks need the most attention?',
+  'What roadmap work is coming up?',
   'Summarize our open support tickets.',
   'What devices are due for replacement?',
 ];

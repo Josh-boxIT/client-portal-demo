@@ -32,8 +32,6 @@ function buildDefaultSeed(tenantId: string): TenantSeed {
     assets: [],
     roadmap: [],
     qbrs: [],
-    budgetLines: [],
-    risks: [],
     metricSeries: [],
     documents: [],
     forms: [],

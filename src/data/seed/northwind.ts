@@ -1,6 +1,6 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
-  RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
+  RoadmapItem, QBR, MetricSeries, Document,
   FormDef, NewsItem, ActivityItem, TicketMessage,
 } from '@/services/types';
 
@@ -220,48 +220,6 @@ const qbrs: QBR[] = [
   },
 ];
 
-function bp(id: string, category: string, period: string, budgeted: number, actual: number, projected: number, type: 'recurring' | 'one-time'): BudgetLine {
-  return { id, tenantId: T, category, period, budgeted, actual, projected, type };
-}
-
-const budgetLines: BudgetLine[] = [
-  bp('nw-b1', 'Cloud & SaaS Licenses', '2026-01', 7200, 7180, 7200, 'recurring'),
-  bp('nw-b2', 'Cloud & SaaS Licenses', '2026-02', 7200, 7250, 7200, 'recurring'),
-  bp('nw-b3', 'Cloud & SaaS Licenses', '2026-03', 7200, 7200, 7200, 'recurring'),
-  bp('nw-b4', 'Cloud & SaaS Licenses', '2026-04', 7200, 7200, 7200, 'recurring'),
-  bp('nw-b5', 'Cloud & SaaS Licenses', '2026-05', 7200, 7150, 7200, 'recurring'),
-  bp('nw-b6', 'Cloud & SaaS Licenses', '2026-06', 7200, 7200, 7200, 'recurring'),
-  bp('nw-b7', 'EHR Licensing (Epic)', '2026-01', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b8', 'EHR Licensing (Epic)', '2026-02', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b9', 'EHR Licensing (Epic)', '2026-03', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b10', 'EHR Licensing (Epic)', '2026-04', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b11', 'EHR Licensing (Epic)', '2026-05', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b12', 'EHR Licensing (Epic)', '2026-06', 4000, 4000, 4000, 'recurring'),
-  bp('nw-b13', 'Managed IT Services', '2026-01', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b14', 'Managed IT Services', '2026-02', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b15', 'Managed IT Services', '2026-03', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b16', 'Managed IT Services', '2026-04', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b17', 'Managed IT Services', '2026-05', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b18', 'Managed IT Services', '2026-06', 5500, 5500, 5500, 'recurring'),
-  bp('nw-b19', 'Compliance & Audit', '2026-Q2', 8000, 5500, 8000, 'one-time'),
-  bp('nw-b20', 'Hardware Refresh', '2026-Q3', 25000, 0, 25000, 'one-time'),
-  bp('nw-b21', 'Security Tools', '2026-01', 1800, 1800, 1800, 'recurring'),
-  bp('nw-b22', 'Security Tools', '2026-02', 1800, 1800, 1800, 'recurring'),
-  bp('nw-b23', 'Security Tools', '2026-03', 1800, 1800, 1800, 'recurring'),
-  bp('nw-b24', 'Security Tools', '2026-04', 1800, 1800, 1800, 'recurring'),
-  bp('nw-b25', 'Security Tools', '2026-05', 1800, 1800, 1800, 'recurring'),
-  bp('nw-b26', 'Security Tools', '2026-06', 1800, 1850, 1800, 'recurring'),
-];
-
-const risks: Risk[] = [
-  { id: 'nw-rk1', tenantId: T, title: 'EOL EHR database server', description: 'HP ProLiant DL380 Gen10 hosting EHR database is past warranty (2019 hardware). Disk near capacity. Failure would cause clinical operations outage.', severity: 'critical', likelihood: 'possible', status: 'mitigating', owner: 'Samuel Adeyemi', mitigation: 'Emergency disk cleanup done. Server refresh RFP in progress for Q3. Veeam backups verified daily.', category: 'Infrastructure' },
-  { id: 'nw-rk2', tenantId: T, title: 'Potential PHI exfiltration via personal email', description: 'Suspected PHI sent to personal Gmail. Active investigation underway.', severity: 'critical', likelihood: 'possible', status: 'open', owner: 'Hannah Weiss', mitigation: 'DLP policy being reviewed. Microsoft Purview audit logs being analysed. Legal counsel notified.', category: 'Compliance' },
-  { id: 'nw-rk3', tenantId: T, title: 'Incomplete BitLocker enforcement', description: '6 endpoints not yet encrypted. Breach risk if device is lost.', severity: 'high', likelihood: 'possible', status: 'mitigating', owner: 'Samuel Adeyemi', mitigation: 'Intune policy deployed. Remaining devices queued for next patch window.', category: 'Security' },
-  { id: 'nw-rk4', tenantId: T, title: 'HIPAA risk assessment not annual', description: 'Last formal HIPAA risk assessment was 14 months ago. Regulatory requirement is annual.', severity: 'high', likelihood: 'almost-certain', status: 'mitigating', owner: 'Hannah Weiss', mitigation: 'Assessment in progress — Q3 completion target.', category: 'Compliance' },
-  { id: 'nw-rk5', tenantId: T, title: 'No network segmentation for IoMT devices', description: 'Medical IoT devices (monitors, infusion pumps) on same VLAN as clinical workstations. NIST and HIPAA recommend segmentation.', severity: 'high', likelihood: 'unlikely', status: 'open', owner: 'Samuel Adeyemi', mitigation: 'Segmentation project planned Q4. Firewall ACLs applied as interim measure.', category: 'Network' },
-  { id: 'nw-rk6', tenantId: T, title: 'MFA gaps — 3 staff not enrolled', description: 'Three staff members have not completed MFA enrollment. Conditional Access is in report-only mode for these accounts.', severity: 'medium', likelihood: 'possible', status: 'open', owner: 'Ethan Carroll', mitigation: 'Deadline communicated. If not enrolled by July 1, accounts will be blocked pending enrollment.', category: 'Security' },
-];
-
 function pts(vals: number[], startDate = '2026-01-01'): { date: string; value: number }[] {
   return vals.map((v, i) => {
     const d = new Date(startDate);
@@ -359,8 +317,6 @@ export const northwindSeed: TenantSeed = {
   assets,
   roadmap,
   qbrs,
-  budgetLines,
-  risks,
   metricSeries,
   documents,
   forms,

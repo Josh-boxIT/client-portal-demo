@@ -19,8 +19,6 @@ export const PORTAL_DOMAINS = [
   'assets',
   'roadmaps',
   'qbrs',
-  'budgets',
-  'risks',
   'customer-churn',
   'metrics',
   'queue-attention',
@@ -65,8 +63,6 @@ function recordHref(domain: PortalDomain, id: string): string {
     case 'assets': return '/assets';
     case 'roadmaps': return '/roadmaps';
     case 'qbrs': return '/qbrs';
-    case 'budgets': return '/budget';
-    case 'risks': return '/risk';
     case 'customer-churn': return '/customer-churn';
     case 'metrics': return '/reports';
     case 'queue-attention': return '/queue-attention';
@@ -246,9 +242,7 @@ export async function buildPortalRecords(
   push('roadmaps', seed.roadmap, (value) => String(value.title));
   if (scope.clientRole === 'client-admin') {
     push('qbrs', seed.qbrs, (value) => `${String(value.quarter)} QBR`);
-    push('budgets', seed.budgetLines, (value) => `${String(value.category)} · ${String(value.period)}`);
   }
-  push('risks', seed.risks, (value) => String(value.title));
   const churnAssessment = scope.isAdmin
     ? churn
       ? await churn.get(scope.tenantId)

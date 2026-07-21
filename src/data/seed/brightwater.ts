@@ -1,6 +1,6 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
-  RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
+  RoadmapItem, QBR, MetricSeries, Document,
   FormDef, NewsItem, ActivityItem, TicketMessage, TicketAttachment,
 } from '@/services/types';
 
@@ -208,44 +208,6 @@ const qbrs: QBR[] = [
   },
 ];
 
-function bp(id: string, category: string, period: string, budgeted: number, actual: number, projected: number, type: 'recurring' | 'one-time'): BudgetLine {
-  return { id, tenantId: T, category, period, budgeted, actual, projected, type };
-}
-
-const budgetLines: BudgetLine[] = [
-  bp('bw-b1', 'Cloud & SaaS Licenses', '2026-01', 4800, 4720, 4800, 'recurring'),
-  bp('bw-b2', 'Cloud & SaaS Licenses', '2026-02', 4800, 4800, 4800, 'recurring'),
-  bp('bw-b3', 'Cloud & SaaS Licenses', '2026-03', 4800, 4900, 4800, 'recurring'),
-  bp('bw-b4', 'Cloud & SaaS Licenses', '2026-04', 4800, 4800, 4800, 'recurring'),
-  bp('bw-b5', 'Cloud & SaaS Licenses', '2026-05', 4800, 4780, 4800, 'recurring'),
-  bp('bw-b6', 'Cloud & SaaS Licenses', '2026-06', 4800, 4820, 4800, 'recurring'),
-  bp('bw-b7', 'Managed IT Services', '2026-01', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b8', 'Managed IT Services', '2026-02', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b9', 'Managed IT Services', '2026-03', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b10', 'Managed IT Services', '2026-04', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b11', 'Managed IT Services', '2026-05', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b12', 'Managed IT Services', '2026-06', 3200, 3200, 3200, 'recurring'),
-  bp('bw-b13', 'Hardware', '2026-01', 500, 0, 500, 'one-time'),
-  bp('bw-b14', 'Hardware', '2026-03', 500, 1249, 500, 'one-time'),
-  bp('bw-b15', 'Hardware', '2026-06', 1000, 0, 8500, 'one-time'),
-  bp('bw-b16', 'Security Tools', '2026-01', 900, 900, 900, 'recurring'),
-  bp('bw-b17', 'Security Tools', '2026-02', 900, 900, 900, 'recurring'),
-  bp('bw-b18', 'Security Tools', '2026-03', 900, 900, 900, 'recurring'),
-  bp('bw-b19', 'Security Tools', '2026-04', 900, 900, 900, 'recurring'),
-  bp('bw-b20', 'Security Tools', '2026-05', 900, 900, 900, 'recurring'),
-  bp('bw-b21', 'Security Tools', '2026-06', 900, 950, 900, 'recurring'),
-  bp('bw-b22', 'Training & Compliance', '2026-Q2', 1500, 1200, 1500, 'one-time'),
-];
-
-const risks: Risk[] = [
-  { id: 'bw-rk1', tenantId: T, title: 'Legacy server past warranty', description: 'HP ProLiant DL380 Gen10 is past warranty. Hardware failure risk is elevated.', severity: 'high', likelihood: 'possible', status: 'mitigating', owner: 'Raj Patel', mitigation: 'Server refresh scheduled for Q4 2026. Nightly backup to Azure Blob verified.', category: 'Infrastructure' },
-  { id: 'bw-rk2', tenantId: T, title: 'Non-compliant endpoints (4 devices)', description: '4 devices are non-compliant with Intune policy — missing critical updates or encryption.', severity: 'medium', likelihood: 'likely', status: 'open', owner: 'Raj Patel', mitigation: 'Remediation tickets created. Targeted completion by July 15.', category: 'Security' },
-  { id: 'bw-rk3', tenantId: T, title: 'VPN dependency for remote workers', description: 'Legacy VPN is single point of failure. Outage would block ~40% of workforce.', severity: 'high', likelihood: 'unlikely', status: 'mitigating', owner: 'Sarah Okonkwo', mitigation: 'Entra Private Access migration in roadmap for Q1 2027. Redundant VPN appliance in place.', category: 'Network' },
-  { id: 'bw-rk4', tenantId: T, title: 'Phishing susceptibility', description: 'Last simulated phishing campaign had 18% click rate — above industry average.', severity: 'high', likelihood: 'possible', status: 'open', owner: 'Sarah Okonkwo', mitigation: 'Security awareness training campaign scheduled for July. Defender for Office 365 Plan 2 deployed.', category: 'Security' },
-  { id: 'bw-rk5', tenantId: T, title: 'Software asset not licensed', description: 'Adobe Acrobat Pro found on 2 machines without valid license.', severity: 'medium', likelihood: 'almost-certain', status: 'open', owner: 'Sarah Okonkwo', mitigation: 'Reviewing audit results. Will either purchase licenses or uninstall.', category: 'Compliance' },
-  { id: 'bw-rk6', tenantId: T, title: 'Single domain controller', description: 'On-prem AD has single DC. Failure would cause widespread authentication issues.', severity: 'critical', likelihood: 'unlikely', status: 'mitigating', owner: 'Raj Patel', mitigation: 'Secondary DC deployment planned Q3. Entra Connect sync active as partial mitigation.', category: 'Infrastructure' },
-];
-
 function pts(vals: number[], startDate = '2026-01-01'): { date: string; value: number }[] {
   return vals.map((v, i) => {
     const d = new Date(startDate);
@@ -323,8 +285,6 @@ export const brightwaterSeed: TenantSeed = {
   assets,
   roadmap,
   qbrs,
-  budgetLines,
-  risks,
   metricSeries,
   documents,
   forms,

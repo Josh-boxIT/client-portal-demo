@@ -464,40 +464,6 @@ export interface QBR {
   deckUrl: string;
 }
 
-// ─── Budget ───────────────────────────────────────────────────────────────────
-
-export type BudgetLineType = 'recurring' | 'one-time';
-
-export interface BudgetLine {
-  id: string;
-  tenantId: string;
-  category: string;
-  period: string; // YYYY-MM
-  budgeted: number;
-  actual: number;
-  projected: number;
-  type: BudgetLineType;
-}
-
-// ─── Risk ─────────────────────────────────────────────────────────────────────
-
-export type RiskSeverity = 'low' | 'medium' | 'high' | 'critical';
-export type RiskLikelihood = 'rare' | 'unlikely' | 'possible' | 'likely' | 'almost-certain';
-export type RiskStatus = 'open' | 'mitigating' | 'accepted' | 'closed';
-
-export interface Risk {
-  id: string;
-  tenantId: string;
-  title: string;
-  description: string;
-  severity: RiskSeverity;
-  likelihood: RiskLikelihood;
-  status: RiskStatus;
-  owner: string;
-  mitigation: string;
-  category: string;
-}
-
 // ─── Metrics ──────────────────────────────────────────────────────────────────
 
 export interface MetricPoint {
@@ -753,8 +719,6 @@ export interface TenantSeed {
   assets: Asset[];
   roadmap: RoadmapItem[];
   qbrs: QBR[];
-  budgetLines: BudgetLine[];
-  risks: Risk[];
   metricSeries: MetricSeries[];
   documents: Document[];
   forms: FormDef[];
@@ -821,15 +785,6 @@ export interface RoadmapService {
 export interface QBRService {
   list(tenantId: string, params?: ListParams): Promise<Page<QBR>>;
   get(tenantId: string, id: string): Promise<QBR | null>;
-}
-
-export interface BudgetService {
-  list(tenantId: string, params?: ListParams): Promise<Page<BudgetLine>>;
-}
-
-export interface RiskService {
-  list(tenantId: string, params?: ListParams): Promise<Page<Risk>>;
-  get(tenantId: string, id: string): Promise<Risk | null>;
 }
 
 export interface MetricsService {
@@ -988,8 +943,6 @@ export interface Services {
   assets: AssetService;
   roadmap: RoadmapService;
   qbr: QBRService;
-  budget: BudgetService;
-  risk: RiskService;
   metrics: MetricsService;
   documents: DocumentService;
   forms: FormService;

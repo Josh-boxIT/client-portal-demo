@@ -104,7 +104,7 @@ files are ignored by Git and are recreated from the canonical sample data.
 The login page offers three one-click choices:
 
 - **Alex Morgan — boxIT Demo Admin:** all three clients plus Clients, Users, and action-management tools.
-- **Sarah Okonkwo — Brightwater IT Manager:** Brightwater client-admin experience, including Budget and QBR access.
+- **Sarah Okonkwo — Brightwater IT Manager:** Brightwater client-admin experience, including QBR access.
 - **Marcus Thiele — Brightwater Operations Analyst:** Brightwater client-user experience with role-gated planning content.
 
 Authentication is deliberately local and demo-only. Sessions are kept in memory by the backend, so restarting the backend requires signing in again.
@@ -115,7 +115,7 @@ Authentication is deliberately local and demo-only. Sessions are kept in memory 
 - **Cedar & Vine Hospitality** — hospitality, amber/forest branding.
 - **Northwind Health Partners** — healthcare, teal/blue branding.
 
-Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, generated ConnectWise agreements, assets, roadmaps, QBRs, budgets, risks, reports, documents, forms, apps, news, and activity.
+Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, generated ConnectWise agreements, assets, roadmaps, QBRs, reports, documents, forms, apps, news, and activity.
 
 SQLite persists:
 

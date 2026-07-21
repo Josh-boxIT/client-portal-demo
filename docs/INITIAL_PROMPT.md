@@ -13,7 +13,7 @@ A clean SaaS dashboard: a colored gradient left sidebar, a top bar, and a light 
 
 **Left sidebar**, grouped with section labels, in this exact order (NO "Approvals" — omit it):
 - OPERATE: Dashboard, Actions, Tickets, People & devices, Assets & lifecycle
-- PLAN: Roadmaps, QBRs, Budget, Risk register
+- PLAN: Roadmaps, QBRs
 - INSIGHTS: Reports & metrics
 - RESOURCES: Documents, Forms, My apps, News
 
@@ -27,11 +27,11 @@ Drive branding entirely from the active tenant via CSS variables (lean on shadcn
 ## Auth & persona switcher (fake)
 - A simple fake login screen (pick a persona, no real credentials) that lands on the Dashboard.
 - A tenant + persona switcher (in the user menu and on the login screen) to flip between seeded tenants/personas at any time.
-- Personas carry a role (`client-admin` vs `client-user`). Role lightly gates UI: e.g., Budget and QBRs are admin-only; users see a friendly "ask your admin" state. Keep gating simple but real.
+- Personas carry a role (`client-admin` vs `client-user`). Role lightly gates UI: e.g., QBRs are admin-only; users see a friendly "ask your admin" state. Keep gating simple but real.
 
 ## Data layer (the important part)
 Define a **typed service interface per domain** and provide **mock implementations** now. Design interfaces so a future REST-backed implementation (ConnectWise Manage, NinjaRMM, Hudu, CIPP, M365, etc.) can replace the mock with no component changes.
-- `src/services/types.ts` — domain models + service interfaces (e.g., `TicketService`, `PeopleService`, `DeviceService`, `AssetService`, `RoadmapService`, `QBRService`, `BudgetService`, `RiskService`, `MetricsService`, `DocumentService`, `FormService`, `AppLaunchpadService`, `NewsService`, `ActionService`).
+- `src/services/types.ts` — domain models + service interfaces (e.g., `TicketService`, `PeopleService`, `DeviceService`, `AssetService`, `RoadmapService`, `QBRService`, `MetricsService`, `DocumentService`, `FormService`, `AppLaunchpadService`, `NewsService`, `ActionService`).
 - Make method signatures and return shapes **REST-friendly**: async, paginated list results (`{ data, page, pageSize, total }`), typed filters, and id-based fetches — so swapping in a `fetch`-based impl is mechanical.
 - `src/services/mock/*` — mock impls reading from seed data, with small simulated latency.
 - A `ServicesProvider` (React context) exposes the services; components consume via a `useServices()` hook. A future `src/services/rest/*` directory swaps in behind the same provider.
@@ -43,7 +43,7 @@ Create **3 tenants** in distinct verticals with distinct themes and **logoipsum-
 2. **Cedar & Vine Hospitality** (hospitality) — warm amber/forest theme.
 3. **Northwind Health Partners** (healthcare) — teal/blue theme.
 
-Each tenant gets 2 personas (one `client-admin`, one `client-user`) and realistic seeded records across every page (people, devices, tickets, assets, roadmap items, QBRs, budget lines, risks, metrics time-series, documents, forms, apps, news). Vary the numbers per tenant so switching feels real.
+Each tenant gets 2 personas (one `client-admin`, one `client-user`) and realistic seeded records across every page (people, devices, tickets, assets, roadmap items, QBRs, metrics time-series, documents, forms, apps, news). Vary the numbers per tenant so switching feels real.
 
 ## Interaction bar ("functional shells")
 Every page gets a realistic layout, seeded data, and working **in-page** interactions: search, filters, tabs, sortable tables, detail drawers/modals, toasts, and optimistic UI. Forms validate and "submit" into session state (appear in a submissions list) but reset on reload. Include loading skeletons and empty states. No backend, no persistence.
@@ -56,8 +56,6 @@ Every page gets a realistic layout, seeded data, and working **in-page** interac
 - **Assets & lifecycle** — hardware/software assets with warranty/lifecycle status, refresh timeline, filters by type/status.
 - **Roadmaps** — IT initiatives across quarters with status/owner; simple timeline/kanban.
 - **QBRs** (admin-only) — past/upcoming quarterly reviews, each with summary metrics, action items, and a placeholder deck/doc link.
-- **Budget** (admin-only) — IT spend by category, monthly/annual views, projected vs actual, license costs, recharts visualizations.
-- **Risk register** — risks table (title, severity, likelihood, status, owner, mitigation) + a severity/likelihood heatmap.
 - **Reports & metrics** — dashboard of recharts visuals: tickets over time, SLA attainment, security score trend, device compliance, license utilization. Date-range filter.
 - **Documents** — knowledge base: folders, search, doc cards, and a reader view (markdown-rendered placeholder content).
 - **Forms** — list of request forms; opening one shows a validated form that submits to a session "My submissions" list.

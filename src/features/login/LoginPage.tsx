@@ -23,7 +23,7 @@ const DEMO_IDENTITIES = [
     key: 'client-admin',
     name: 'Sarah Okonkwo',
     title: 'Brightwater IT Manager',
-    description: 'Explore client-admin tools, budgets, QBRs, and requests.',
+    description: 'Explore client-admin tools, QBRs, and requests.',
     email: 'sarah.okonkwo@brightwaterlogistics.com',
     tenantId: 'brightwater',
     personaId: 'bw-admin',
