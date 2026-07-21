@@ -12,6 +12,7 @@ import {
   ConnectWiseClient,
 } from './connectwise';
 import { ninjaOrganizationFilter, NinjaOneClient } from './ninjaone';
+import { CONNECTWISE_CACHE_REFRESH_MS } from './vendor-data';
 
 const env: ServerEnv = {
   port: 8787,
@@ -277,6 +278,7 @@ describe('mapped vendor-backed portal routes', () => {
 
     const people = await app.inject({ method: 'GET', url: '/api/people?pageSize=100', headers: headers() });
     expect(people.json()).toMatchObject({ source: 'connectwise', fallback: false, data: [{ id: 'cw-contact-700', email: 'sarah.okonkwo@brightwaterlogistics.com' }] });
+    expect(requests.filter((url) => url.pathname.endsWith('/company/contacts'))).toHaveLength(1);
 
     const devices = await app.inject({ method: 'GET', url: '/api/devices?pageSize=100', headers: headers() });
     expect(devices.json()).toMatchObject({ source: 'connectwise', fallback: false, data: [{ id: 'cw-config-900', enrichedBy: 'ninjarmm', online: true }] });
@@ -335,12 +337,15 @@ describe('mapped vendor-backed portal routes', () => {
       'cw-note-1201',
       'cw-time-1400',
     ]);
+    expect(requests.filter((url) => url.pathname.endsWith('/service/tickets'))).toHaveLength(2);
+    expect(requests.filter((url) => url.pathname.endsWith('/time/entries'))).toHaveLength(1);
     const attachment = await app.inject({ method: 'GET', url: '/api/tickets/cw-ticket-1200/images/1300', headers: headers() });
     expect(attachment.statusCode).toBe(200);
     expect(attachment.headers['content-type']).toBe('image/png');
 
     const context = await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers() });
     expect(context.json()).toMatchObject({ agreements: [{ id: 'cw-agreement-300', lineItems: [{ id: 'cw-addition-301' }] }], ticketCount: 1 });
+    expect(requests.filter((url) => url.pathname.endsWith('/finance/agreements'))).toHaveLength(1);
   });
 
   it('rejects all ticket mutations for a mapped client', async () => {
@@ -428,5 +433,42 @@ describe('mapped fallback behavior', () => {
     expect(result.json().data[0].id).toMatch(/^bw-/);
     await app.close();
     opened.raw.close();
+  });
+});
+
+describe('ConnectWise cache scheduling', () => {
+  it('refreshes mapped tenants every five minutes', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const opened = openTestDb();
+    const requests: URL[] = [];
+    const app = await buildApp({
+      db: opened.db,
+      env,
+      logger: false,
+      vendorFetch: mockVendorFetch(requests),
+      salesOpportunityProvider: null,
+    });
+    try {
+      const login = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email: 'alex.morgan@boxit.demo' },
+      });
+      await app.inject({
+        method: 'PATCH',
+        url: '/api/admin/clients/brightwater',
+        headers: { authorization: `Bearer ${login.json().token}` },
+        payload: { connectWiseCompanyId: 42 },
+      });
+      expect(requests.filter((url) => url.pathname.endsWith('/company/contacts'))).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(CONNECTWISE_CACHE_REFRESH_MS);
+
+      expect(requests.filter((url) => url.pathname.endsWith('/company/contacts'))).toHaveLength(2);
+    } finally {
+      await app.close();
+      opened.raw.close();
+      vi.useRealTimers();
+    }
   });
 });

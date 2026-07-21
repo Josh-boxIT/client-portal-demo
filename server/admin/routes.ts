@@ -53,13 +53,20 @@ export function registerAdminRoutes(
 
   app.patch('/api/admin/clients/:id', { preHandler: requireRole('admin', 'editor') }, async (req) => {
     if (!req.adminIdentity) throw new ApiError(401, 'unauthenticated', 'Admin identity required');
-    return updateClient(
+    const id = (req.params as { id: string }).id;
+    const previousCompanyId = configStore.tenantById(id)?.connectWiseCompanyId;
+    const updated = await updateClient(
       app.db,
       configStore,
-      (req.params as { id: string }).id,
+      id,
       req.body as UpdateClientPatch,
       req.adminIdentity.email,
     );
+    const tenant = configStore.tenantById(updated.id);
+    if (tenant && previousCompanyId !== tenant.connectWiseCompanyId) {
+      await vendorData.refreshTenant(tenant, true);
+    }
+    return updated;
   });
 
   app.get('/api/admin/connectwise/companies', { preHandler: requireRole('admin', 'editor') }, async (req) => {
@@ -97,6 +104,8 @@ export function registerAdminRoutes(
       company,
       req.adminIdentity!.email,
     );
+    const tenant = configStore.tenantById(imported.id);
+    if (tenant) await vendorData.refreshTenant(tenant, true);
     return reply.status(201).send(imported);
   });
 

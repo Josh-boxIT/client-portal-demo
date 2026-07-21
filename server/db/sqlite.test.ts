@@ -5,7 +5,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getDb, runMigrations } from './client';
 import { seedIfEmpty, seedProductCatalogIfEmpty } from './seed';
 import { actionDefs, adminUsers, productCatalog, tenants } from './schema';
-import { demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo, tenantRepo } from './repositories';
+import {
+  connectWiseCacheRepo,
+  demoTicketMutationRepo,
+  demoTicketRepo,
+  formSubmissionRepo,
+  tenantRepo,
+} from './repositories';
 import type { FormSubmission, Ticket } from '@/services/types';
 
 const tempDirs: string[] = [];
@@ -71,6 +77,34 @@ describe('SQLite demo persistence', () => {
       updatedAt: '2026-07-20T12:06:00.000Z',
     });
     expect(await formSubmissionRepo(second.db).list('brightwater', 'bw-admin')).toEqual([submission]);
+    second.raw.close();
+  });
+
+  it('upserts ConnectWise snapshots and preserves them after reopening a file', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'client-portal-demo-cw-cache-'));
+    tempDirs.push(directory);
+    const path = join(directory, 'cache.db');
+    const first = getDb(path);
+    runMigrations(first.db);
+    await seedIfEmpty(first.db);
+    const firstCache = connectWiseCacheRepo(first.db);
+
+    await firstCache.replace('brightwater', 'people', [
+      { id: 'cw-contact-1', data: { id: 'cw-contact-1', name: 'Old name' } },
+      { id: 'cw-contact-stale', data: { id: 'cw-contact-stale', name: 'Remove me' } },
+    ], '2026-07-21T10:00:00.000Z');
+    await firstCache.replace('brightwater', 'people', [
+      { id: 'cw-contact-1', data: { id: 'cw-contact-1', name: 'Updated name' } },
+      { id: 'cw-contact-2', data: { id: 'cw-contact-2', name: 'New person' } },
+    ], '2026-07-21T10:05:00.000Z');
+    first.raw.close();
+
+    const second = getDb(path);
+    runMigrations(second.db);
+    expect(await connectWiseCacheRepo(second.db).list('brightwater', 'people')).toEqual([
+      { id: 'cw-contact-1', name: 'Updated name' },
+      { id: 'cw-contact-2', name: 'New person' },
+    ]);
     second.raw.close();
   });
 });

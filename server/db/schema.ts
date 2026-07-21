@@ -143,6 +143,40 @@ export const demoTickets = sqliteTable('demo_tickets', {
   tenantIndex: index('demo_tickets_tenant_idx').on(table.tenantId),
 }));
 
+export type ConnectWiseCacheResource =
+  | 'people'
+  | 'devices'
+  | 'tickets'
+  | 'ticket-details'
+  | 'agreements';
+
+/** Last successful normalized ConnectWise snapshot for each tenant/resource. */
+export const connectWiseCacheSnapshots = sqliteTable('connectwise_cache_snapshots', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  resource: text('resource').$type<ConnectWiseCacheResource>().notNull(),
+  syncedAt: text('synced_at').notNull(),
+}, (table) => ({
+  tenantResourceUnique: uniqueIndex('connectwise_cache_snapshots_tenant_resource_uq')
+    .on(table.tenantId, table.resource),
+}));
+
+/** Individually upserted entities belonging to a successful cache snapshot. */
+export const connectWiseCacheEntries = sqliteTable('connectwise_cache_entries', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  resource: text('resource').$type<ConnectWiseCacheResource>().notNull(),
+  entityId: text('entity_id').notNull(),
+  data: text('data', { mode: 'json' }).$type<unknown>().notNull(),
+  position: integer('position').notNull(),
+  syncedAt: text('synced_at').notNull(),
+}, (table) => ({
+  tenantResourceEntityUnique: uniqueIndex('connectwise_cache_entries_tenant_resource_entity_uq')
+    .on(table.tenantId, table.resource, table.entityId),
+  tenantResourcePositionIndex: index('connectwise_cache_entries_tenant_resource_position_idx')
+    .on(table.tenantId, table.resource, table.position),
+}));
+
 /** Mutable fields layered over canonical seeded tickets (and demo-created tickets). */
 export const demoTicketMutations = sqliteTable('demo_ticket_mutations', {
   id: text('id').primaryKey(),
@@ -203,6 +237,7 @@ export type NewAdminUser = typeof adminUsers.$inferInsert;
 export type ActionDefRow = typeof actionDefs.$inferSelect;
 export type NewActionDef = typeof actionDefs.$inferInsert;
 export type DemoTicketRow = typeof demoTickets.$inferSelect;
+export type ConnectWiseCacheEntryRow = typeof connectWiseCacheEntries.$inferSelect;
 export type FormSubmissionRow = typeof formSubmissions.$inferSelect;
 export type AssistantConversationRow = typeof assistantConversations.$inferSelect;
 export type AssistantMessageRow = typeof assistantMessages.$inferSelect;
