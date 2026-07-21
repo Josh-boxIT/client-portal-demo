@@ -14,7 +14,7 @@ The project is a React SPA plus a Fastify API. It runs without external services
 
 The SQLite schema contains portal configuration, optional vendor organization mappings, mutable demo tables, user- and tenant-scoped assistant conversations, the global product catalog, latest per-tenant sales analyses, and simulated ConnectWise handoffs. Vendor credentials are never persisted.
 
-Migrations run at backend startup. Transactional versioned seeds independently initialize the core demo and product catalog, so existing databases receive the catalog while later admin edits and deletions remain preserved. Tests use a fresh `:memory:` database.
+Migrations run at backend startup. Transactional versioned seeds independently initialize the core demo and product catalog. Catalog version upgrades replace the prior seeded catalog once, after which later admin edits and deletions remain preserved until another explicit catalog version is introduced. Tests use a fresh `:memory:` database.
 
 Canonical tickets and generated ConnectWise agreements are not copied into SQLite. `GET /api/tickets` merges code-backed samples with SQLite-created tickets before applying filtering and pagination. Form definitions remain code-backed while submissions are stored in SQLite.
 
@@ -62,7 +62,7 @@ Sales opportunity routes require an `admin` or `editor` identity and always anal
 - Startup still requires no `.env`, Docker service, credentials, or external network; vendor reads are opt-in.
 - Only Brightwater, Cedar & Vine, and Northwind are seeded.
 - The first-run seed creates three demo identities and all eight action templates for each tenant.
-- A separate idempotent seed creates eight editable global product offerings.
+- A separate idempotent versioned seed creates 25 editable global product offerings curated from active ConnectWise Maintenance Contract additions.
 - Client identities never receive ticket messages or attachments marked internal.
 - Created tickets and form submissions survive backend restarts.
 - Sales-opportunity sends remain simulations and never write to ConnectWise. Agreement reads use ConnectWise only for mapped tenants.

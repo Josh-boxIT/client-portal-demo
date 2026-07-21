@@ -11,9 +11,9 @@ class FakeOpportunityProvider implements SalesOpportunityModelProvider {
   calls: OpportunityModelInput[] = [];
   suggestions: OpportunityModelSuggestion[] = [
     {
-      title: 'Deploy EDR across Brightwater endpoints', category: 'Security', kind: 'gap',
-      priority: 'high', confidence: 91, catalogProductId: 'product-edr',
-      rationale: 'A malware ticket and the missing agreement line show an endpoint protection gap.',
+      title: 'Deploy managed antivirus across Brightwater endpoints', category: 'Security', kind: 'gap',
+      priority: 'high', confidence: 91, catalogProductId: 'product-managed-antivirus',
+      rationale: 'A malware ticket and the missing agreement line show a managed antivirus gap.',
       suggestedApproach: 'Lead with consistent warehouse and office endpoint coverage.',
       evidenceIds: ['ticket:brightwater-sales-signal-3', 'agreement:agreement-bw-managed'],
     },
@@ -89,7 +89,7 @@ describe('sales opportunity API', () => {
     expect(provider.calls[0].tenantId).toBe('brightwater');
     expect(provider.calls[0].agreements).toHaveLength(1);
     expect(provider.calls[0].tickets.every((ticket) => ticket.tenantId === 'brightwater')).toBe(true);
-    expect(provider.calls[0].products).toHaveLength(8);
+    expect(provider.calls[0].products).toHaveLength(25);
   });
 
   it('drops unsupported evidence and calculates values only for catalog products', async () => {
@@ -98,7 +98,7 @@ describe('sales opportunity API', () => {
     const findings = response.json().findings;
     expect(findings).toHaveLength(2);
     expect(findings[0]).toMatchObject({
-      catalogProductId: 'product-edr', monthlyValueLow: 176, monthlyValueHigh: 330,
+      catalogProductId: 'product-managed-antivirus', monthlyValueLow: 66, monthlyValueHigh: 154,
       evidence: [{ sourceType: 'ticket' }, { sourceType: 'agreement' }],
     });
     expect(findings[1]).toMatchObject({ monthlyValueLow: null, monthlyValueHigh: null });
@@ -140,19 +140,19 @@ describe('product catalog API', () => {
     expect((await app.inject({ method: 'GET', url: '/api/admin/product-catalog', headers: headers(editor) })).statusCode).toBe(403);
 
     const listed = await app.inject({ method: 'GET', url: '/api/admin/product-catalog', headers: headers(admin) });
-    expect(listed.json()).toHaveLength(8);
+    expect(listed.json()).toHaveLength(25);
     const invalid = await app.inject({ method: 'POST', url: '/api/admin/product-catalog', headers: headers(admin), payload: {
       name: 'Invalid', category: 'Test', description: 'Bad range', aliases: [], pricingModel: 'flat', monthlyPriceLow: 20, monthlyPriceHigh: 10,
     } });
     expect(invalid.statusCode).toBe(400);
 
     const created = await app.inject({ method: 'POST', url: '/api/admin/product-catalog', headers: headers(admin), payload: {
-      name: '  DNS Protection  ', category: 'Security', description: 'Protective DNS filtering.', aliases: ['dns filter'], pricingModel: 'per-user', monthlyPriceLow: 2, monthlyPriceHigh: 5,
+      name: '  Secure Web Gateway  ', category: 'Security', description: 'Protective web filtering.', aliases: ['web filter'], pricingModel: 'per-user', monthlyPriceLow: 2, monthlyPriceHigh: 5,
     } });
     expect(created.statusCode).toBe(201);
-    expect(created.json()).toMatchObject({ name: 'DNS Protection', enabled: true });
+    expect(created.json()).toMatchObject({ name: 'Secure Web Gateway', enabled: true });
     const duplicate = await app.inject({ method: 'POST', url: '/api/admin/product-catalog', headers: headers(admin), payload: {
-      name: 'dns protection', category: 'Security', description: 'Duplicate.', aliases: [], pricingModel: 'flat', monthlyPriceLow: 1, monthlyPriceHigh: 2,
+      name: 'secure web gateway', category: 'Security', description: 'Duplicate.', aliases: [], pricingModel: 'flat', monthlyPriceLow: 1, monthlyPriceHigh: 2,
     } });
     expect(duplicate.statusCode).toBe(409);
     const id = created.json().id;

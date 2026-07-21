@@ -35,7 +35,7 @@ const agreements: Record<string, ConnectWiseAgreement[]> = {
     exclusions: ['POS vendor support', 'Guest Wi-Fi cabling', 'New-location projects'],
     lineItems: [
       { id: 'cv-li-1', name: 'Hospitality Help Desk', description: 'Extended-hours user support', quantity: 18, unitPrice: 155, monthlyAmount: 2790 },
-      { id: 'cv-li-2', productCatalogId: 'product-edr', name: 'EDR', description: 'Managed endpoint detection and response', quantity: 19, unitPrice: 13, monthlyAmount: 247 },
+      { id: 'cv-li-2', productCatalogId: 'product-managed-antivirus', name: 'Managed Antivirus', description: 'Managed endpoint antivirus protection', quantity: 19, unitPrice: 13, monthlyAmount: 247 },
       { id: 'cv-li-3', name: 'Network & Wi-Fi Management', description: 'Corporate and guest network management', quantity: 3, unitPrice: 496, monthlyAmount: 1488 },
       { id: 'cv-li-4', name: 'PCI Advisory', description: 'Quarterly PCI readiness review', quantity: 1, unitPrice: 450, monthlyAmount: 450 },
     ],
@@ -55,10 +55,10 @@ const agreements: Record<string, ConnectWiseAgreement[]> = {
     exclusions: ['EHR application support', 'Medical device support', 'Major infrastructure projects'],
     lineItems: [
       { id: 'nw-li-1', name: 'Healthcare Help Desk', description: '24×7 support for covered users', quantity: 43, unitPrice: 180, monthlyAmount: 7740 },
-      { id: 'nw-li-2', productCatalogId: 'product-mdr', name: 'MDR / Managed SOC', description: 'Managed detection and response', quantity: 48, unitPrice: 34, monthlyAmount: 1632 },
-      { id: 'nw-li-3', productCatalogId: 'product-email', name: 'Advanced Email Security', description: 'Email threat protection', quantity: 43, unitPrice: 8, monthlyAmount: 344 },
+      { id: 'nw-li-2', productCatalogId: 'product-managed-siem', name: 'Managed SIEM', description: 'Managed security information and event monitoring', quantity: 48, unitPrice: 34, monthlyAmount: 1632 },
+      { id: 'nw-li-3', productCatalogId: 'product-email-security', name: 'Advanced Email Security', description: 'Email threat protection', quantity: 43, unitPrice: 8, monthlyAmount: 344 },
       { id: 'nw-li-4', name: 'Infrastructure Management', description: 'Server and network management', quantity: 1, unitPrice: 2834, monthlyAmount: 2834 },
-      { id: 'nw-li-5', productCatalogId: 'product-vcio', name: 'vCIO & Compliance Advisory', description: 'HIPAA roadmap and executive advisory', quantity: 1, unitPrice: 1200, monthlyAmount: 1200 },
+      { id: 'nw-li-5', name: 'vCIO & Compliance Advisory', description: 'HIPAA roadmap and executive advisory', quantity: 1, unitPrice: 1200, monthlyAmount: 1200 },
     ],
     sourceUpdatedAt: '2026-07-20T11:05:00Z',
   }],
