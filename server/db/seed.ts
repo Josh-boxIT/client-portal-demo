@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { ACTION_DEFS } from '@/data/actions';
 import type { AppDb } from './client';
+import { PRODUCT_CATALOG } from './product-catalog';
 import {
   actionDefs,
   adminUserClientAccess,
@@ -14,7 +15,7 @@ import {
 const SEED_KEY = 'demo_seed_version';
 const SEED_VERSION = '1';
 const PRODUCT_SEED_KEY = 'product_catalog_seed_version';
-const PRODUCT_SEED_VERSION = '1';
+const PRODUCT_SEED_VERSION = '2';
 
 export interface SeedTenant {
   slug: string;
@@ -49,29 +50,22 @@ export const DEMO_USERS = [
   { id: 'demo-client-user', email: 'marcus.thiele@brightwaterlogistics.com', name: 'Marcus Thiele', role: 'viewer' as const },
 ];
 
-const DEMO_PRODUCTS = [
-  { id: 'product-edr', name: 'EDR', category: 'Security', description: 'Managed endpoint detection and response.', aliases: ['endpoint detection', 'endpoint security', 'antivirus'], pricingModel: 'per-device' as const, monthlyPriceLow: 8, monthlyPriceHigh: 15 },
-  { id: 'product-mdr', name: 'MDR / Managed SOC', category: 'Security', description: '24×7 managed detection, investigation, and response.', aliases: ['managed soc', 'soc', 'siem', 'mdr'], pricingModel: 'per-device' as const, monthlyPriceLow: 20, monthlyPriceHigh: 40 },
-  { id: 'product-sat', name: 'Security Awareness Training', category: 'Security', description: 'Recurring training and phishing simulations for staff.', aliases: ['sat', 'phishing training', 'security training'], pricingModel: 'per-user' as const, monthlyPriceLow: 3, monthlyPriceHigh: 6 },
-  { id: 'product-email', name: 'Advanced Email Security', category: 'Security', description: 'Advanced phishing, impersonation, and malicious attachment protection.', aliases: ['email security', 'anti-phishing', 'spam filtering'], pricingModel: 'per-user' as const, monthlyPriceLow: 4, monthlyPriceHigh: 9 },
-  { id: 'product-m365-backup', name: 'Microsoft 365 Backup', category: 'Backup', description: 'Independent backup and recovery for Exchange, OneDrive, SharePoint, and Teams.', aliases: ['m365 backup', 'office 365 backup', 'cloud backup'], pricingModel: 'per-user' as const, monthlyPriceLow: 3, monthlyPriceHigh: 8 },
-  { id: 'product-bcdr', name: 'Managed Backup & Disaster Recovery', category: 'Backup', description: 'Managed server, endpoint, and workload recovery with regular testing.', aliases: ['bcdr', 'backup', 'disaster recovery', 'business continuity'], pricingModel: 'flat' as const, monthlyPriceLow: 500, monthlyPriceHigh: 2500 },
-  { id: 'product-vulnerability', name: 'Vulnerability Management', category: 'Security', description: 'Continuous vulnerability scanning, prioritization, and remediation reporting.', aliases: ['vulnerability scanning', 'risk scanning', 'patch assessment'], pricingModel: 'per-device' as const, monthlyPriceLow: 5, monthlyPriceHigh: 12 },
-  { id: 'product-vcio', name: 'vCIO & Compliance Advisory', category: 'Advisory', description: 'Executive technology planning, budgeting, and compliance guidance.', aliases: ['vcio', 'compliance', 'technology roadmap', 'qbr'], pricingModel: 'flat' as const, monthlyPriceLow: 500, monthlyPriceHigh: 1500 },
-];
-
 export async function seedProductCatalogIfEmpty(db: AppDb): Promise<{ seeded: boolean }> {
   const existing = db.select().from(appMeta).where(eq(appMeta.key, PRODUCT_SEED_KEY)).get();
-  if (existing) return { seeded: false };
+  if (existing?.value === PRODUCT_SEED_VERSION) return { seeded: false };
   db.transaction((tx) => {
-    for (const product of DEMO_PRODUCTS) {
+    tx.delete(productCatalog).run();
+    for (const product of PRODUCT_CATALOG) {
       tx.insert(productCatalog).values({
         ...product,
         normalizedName: product.name.trim().toLowerCase().replace(/\s+/g, ' '),
         enabled: true,
-      }).onConflictDoNothing().run();
+      }).run();
     }
-    tx.insert(appMeta).values({ key: PRODUCT_SEED_KEY, value: PRODUCT_SEED_VERSION }).run();
+    tx.insert(appMeta).values({ key: PRODUCT_SEED_KEY, value: PRODUCT_SEED_VERSION }).onConflictDoUpdate({
+      target: appMeta.key,
+      set: { value: PRODUCT_SEED_VERSION },
+    }).run();
   });
   return { seeded: true };
 }

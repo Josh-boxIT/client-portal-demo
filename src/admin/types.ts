@@ -46,6 +46,21 @@ export interface ClientView {
   status: string;
   vertical: string | null;
   theme: TenantThemeTokens;
+  connectWiseCompanyId: number | null;
+  ninjaOneOrganizationId: number | null;
+}
+
+export interface ConnectWiseCompanyView {
+  id: number;
+  identifier: string;
+  name: string;
+  status: string;
+  city: string;
+  state: string;
+  phoneNumber: string;
+  website: string;
+  market: string;
+  importedTenantId: string | null;
 }
 
 export type ActionDefDto = ActionDef;

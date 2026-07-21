@@ -13,6 +13,7 @@ import { OpenAIAssistantProvider, type AssistantModelProvider } from './assistan
 import { registerAssistantRoutes } from './assistant/routes';
 import { OpenAISalesOpportunityProvider, type SalesOpportunityModelProvider } from './sales-opportunities/provider';
 import { registerSalesOpportunityRoutes } from './sales-opportunities/routes';
+import { VendorDataService } from './integrations/vendor-data';
 
 export interface BuildAppOptions {
   env?: ServerEnv;
@@ -20,6 +21,7 @@ export interface BuildAppOptions {
   db?: AppDb;
   assistantProvider?: AssistantModelProvider | null;
   salesOpportunityProvider?: SalesOpportunityModelProvider | null;
+  vendorFetch?: typeof fetch;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -39,23 +41,32 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.decorate('configStore', configStore);
 
   const authProvider = new FakeAdminAuthProvider(db);
+  const vendorData = new VendorDataService(env, db, options.vendorFetch);
   registerSessionAuth(app, authProvider);
   registerAuthRoutes(app, { authProvider, db });
-  registerAdminRoutes(app, configStore);
-  registerApiRoutes(app);
+  registerAdminRoutes(app, configStore, vendorData);
+  registerApiRoutes(app, vendorData);
   const assistantProvider = Object.prototype.hasOwnProperty.call(options, 'assistantProvider')
     ? options.assistantProvider ?? null
     : env.openAiApiKey
       ? new OpenAIAssistantProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
       : null;
-  registerAssistantRoutes(app, { provider: assistantProvider });
+  registerAssistantRoutes(app, { provider: assistantProvider, vendorData });
   const salesOpportunityProvider = Object.prototype.hasOwnProperty.call(options, 'salesOpportunityProvider')
     ? options.salesOpportunityProvider ?? null
     : env.openAiApiKey
       ? new OpenAISalesOpportunityProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
       : null;
-  registerSalesOpportunityRoutes(app, salesOpportunityProvider);
+  registerSalesOpportunityRoutes(app, salesOpportunityProvider, vendorData);
 
-  if (opened) app.addHook('onClose', async () => opened.raw.close());
+  await vendorData.start(
+    () => configStore.tenants(),
+    (error) => app.log.warn({ err: error }, 'ConnectWise cache refresh failed; retaining last snapshot'),
+  );
+
+  app.addHook('onClose', async () => {
+    await vendorData.stop();
+    if (opened) opened.raw.close();
+  });
   return app;
 }

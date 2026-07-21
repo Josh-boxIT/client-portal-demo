@@ -1,8 +1,8 @@
 # MSP Client Portal Demo
 
-A self-contained, white-label MSP client portal built for demos. It ships with three fictional clients, realistic sample records across every portal feature, one-click identities, and a local SQLite database for mutable demo content.
+A white-label MSP client portal built for demos. It ships with three fictional clients, realistic sample records across every portal feature, one-click identities, and a local SQLite database for mutable demo content. Optional read-only ConnectWise and NinjaOne mappings can replace the matching demo domains for any seeded client.
 
-No Docker, Postgres, cloud login, vendor credentials, or external API access is required.
+No Docker, Postgres, cloud login, vendor credentials, or external API access is required for the default demo.
 
 ## Development setup
 
@@ -44,7 +44,7 @@ cp .env.example .env
 
 ### Optional AI features
 
-The portal hides its permission-aware AI assistant and disables new Sales Opportunities analysis unless an OpenAI API key is configured. OpenAI is the demo's only live external service. The assistant can only search server-filtered sample records, while the staff-only opportunity agent produces structured, evidence-backed findings from generated agreements, tickets, churn data, and the admin product catalog. Neither feature can change external systems.
+The portal hides its permission-aware AI assistant and disables new Sales Opportunities analysis unless an OpenAI API key is configured. The assistant can only search server-filtered records, while the staff-only opportunity agent produces structured, evidence-backed findings from agreements, tickets, churn data, and the admin product catalog. Neither feature can change external systems.
 
 ```bash
 export OPENAI_API_KEY="your-api-key"
@@ -55,6 +55,26 @@ npm run dev
 ```
 
 Conversation history and each client's latest opportunity analysis remain in the local SQLite database. The API key is read only by the Fastify server and is never sent to the browser.
+
+### Optional read-only vendor data
+
+Configure global credentials in `.env`, then sign in as the demo administrator and add a ConnectWise company ID and/or NinjaOne organization ID under **Admin → Clients**. The IDs are stored in SQLite; secrets remain in the server environment.
+
+```bash
+CONNECTWISE_BASE_URL=https://api-na.myconnectwise.net/v4_6_release/apis/3.0
+CONNECTWISE_COMPANY_ID=your-psa-company-id
+CONNECTWISE_PUBLIC_KEY=...
+CONNECTWISE_PRIVATE_KEY=...
+CONNECTWISE_CLIENT_ID=...
+
+NINJAONE_BASE_URL=https://app.ninjarmm.com
+NINJAONE_CLIENT_ID=...
+NINJAONE_CLIENT_SECRET=...
+```
+
+Mapped ConnectWise clients use live people, configurations/devices, tickets from the last 365 days, ticket notes/time entries/attachments, and agreements. Mapped NinjaOne organizations enrich those devices with inventory and telemetry. If a vendor read fails, the portal uses that tenant's demo data. Any vendor mapping marks the client as read-only: ticket creation, replies, status changes, and action-generated tickets are disabled.
+
+In **Admin → Clients**, **Import from ConnectWise** searches companies by name or identifier and creates a new portal client from the selected company. The server fetches the selected company directly from ConnectWise, generates local branding, stores its company ID in SQLite, and exposes the new tenant to staff users. Existing clients can still be edited to change their ConnectWise or NinjaOne numeric mappings.
 
 After making changes, run the same checks used to validate the project:
 
@@ -114,12 +134,12 @@ Created tickets are merged with the canonical ticket samples. Form submissions a
 
 - **Frontend:** Vite, React 18, strict TypeScript, Tailwind CSS, shadcn/ui, Zustand, React Router, Recharts.
 - **Backend:** Fastify with Drizzle ORM over `better-sqlite3`.
-- **Immutable domain data:** typed sample services behind `useServices()`.
+- **Domain data:** typed services behind `useServices()` with server-selected vendor reads or demo fallbacks.
 - **Mutable demo data:** same-origin REST services backed by SQLite.
 - **Multi-tenancy:** every service call and persisted record is scoped by tenant ID.
 - **Permission-aware AI:** optional OpenAI-powered conversations plus staff-only structured sales analysis grounded in permitted demo records.
 
-The portal has one permanent sample-only service graph. There is no live-data switch or connector registry. Components continue to consume typed service interfaces rather than importing persistence details.
+The portal has one service graph and no browser-side live-data switch. The Fastify backend selects vendor reads per tenant based on admin mappings, while components continue to consume the same typed service interfaces.
 
 ## Commands
 
@@ -137,9 +157,9 @@ npm run db:migrate        # apply migrations to the local SQLite file
 
 Alex Morgan can open **Admin** from the user menu:
 
-- **Clients:** edit the three demo clients' display metadata and branding tokens.
+- **Clients:** edit the three demo clients' display metadata, branding tokens, and optional ConnectWise/NinjaOne mappings.
 - **Users:** create, edit, disable, and grant client access to local demo identities.
 - **Products:** configure the global offerings and demo pricing assumptions used by Sales Opportunities.
 - **Actions:** available from the portal's Actions page for editing tenant-specific self-service workflows.
 
-Integration, connection, import, synchronization, and SSO surfaces are intentionally absent from this demo. ConnectWise agreement pulls and opportunity sends are explicitly simulated and never make vendor API calls.
+Credential, import, synchronization, and SSO surfaces remain intentionally absent. Credentials are configured only in the server environment. ConnectWise/NinjaOne reads are on demand; sales-opportunity sends remain local simulations and never make vendor write calls.

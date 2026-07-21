@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import {
-  Bot, BriefcaseBusiness, CheckCircle2, ExternalLink, FileCheck2, RefreshCw,
-  Send, ShieldAlert, Ticket, Users,
+  Bot, BriefcaseBusiness, CheckCircle2, ChevronDown, ExternalLink, FileCheck2, RefreshCw,
+  Send, ShieldAlert, Ticket, Trash2, Users,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -44,11 +44,13 @@ function OpportunityCard({
   tenantName,
   sending,
   onSend,
+  onEvidenceOpen,
 }: {
   finding: SalesOpportunityFinding;
   tenantName: string;
   sending: boolean;
   onSend: () => void;
+  onEvidenceOpen: (sourceType: string, sourceId: string) => void;
 }) {
   return (
     <Card className="h-full border-primary/15">
@@ -88,7 +90,9 @@ function OpportunityCard({
           <div className="mt-2 flex flex-wrap gap-2">
             {finding.evidence.map((item) => (
               <Button key={`${item.sourceType}:${item.sourceId}`} variant="outline" size="sm" asChild>
-                <Link to={item.href}>{item.label}<ExternalLink className="ml-1.5 h-3 w-3" /></Link>
+                <Link to={item.href} onClick={() => onEvidenceOpen(item.sourceType, item.sourceId)}>
+                  {item.label}<ExternalLink className="ml-1.5 h-3 w-3" />
+                </Link>
               </Button>
             ))}
           </div>
@@ -119,6 +123,8 @@ export function SalesOpportunitiesPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<Set<string>>(new Set());
+  const [expandedAgreements, setExpandedAgreements] = useState<Set<string>>(new Set());
+  const [clearing, setClearing] = useState<string | null>(null);
   const [sending, setSending] = useState<string | null>(null);
   const [sentFinding, setSentFinding] = useState<SalesOpportunityFinding | null>(null);
 
@@ -175,6 +181,38 @@ export function SalesOpportunitiesPage() {
     }
   }
 
+  async function clearRecommendations(tenantId: string) {
+    const tenantName = contexts[tenantId]?.tenantName ?? tenantId;
+    if (!window.confirm(`Clear saved recommendations for ${tenantName}? Sent-to-ConnectWise history will be preserved.`)) return;
+    setClearing(tenantId);
+    setErrors((current) => { const next = { ...current }; delete next[tenantId]; return next; });
+    try {
+      await salesOpportunities.clear(tenantId);
+      setAnalyses((current) => ({ ...current, [tenantId]: null }));
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [tenantId]: error instanceof Error ? error.message : 'Unable to clear recommendations',
+      }));
+    } finally {
+      setClearing(null);
+    }
+  }
+
+  function toggleAgreement(agreementId: string) {
+    setExpandedAgreements((current) => {
+      const next = new Set(current);
+      if (next.has(agreementId)) next.delete(agreementId);
+      else next.add(agreementId);
+      return next;
+    });
+  }
+
+  function openEvidence(sourceType: string, sourceId: string) {
+    if (sourceType !== 'agreement') return;
+    setExpandedAgreements((current) => new Set(current).add(sourceId));
+  }
+
   async function handleSend(finding: SalesOpportunityFinding) {
     setSending(finding.fingerprint);
     try {
@@ -207,10 +245,20 @@ export function SalesOpportunitiesPage() {
       <PageHeader
         title="Sales Opportunities"
         subtitle="AI agent analysis of ConnectWise agreements, service history, and churn signals"
-        actions={<Button onClick={() => void runTargets()} disabled={loading || anyRunning || !allEnabled}>
-          <Bot className={cn('mr-2 h-4 w-4', anyRunning && 'animate-pulse')} />
-          {anyRunning ? `Analyzing ${running.size} client${running.size === 1 ? '' : 's'}…` : mode === 'all' ? 'Analyze all clients' : 'Analyze client'}
-        </Button>}
+        actions={<div className="flex flex-wrap gap-2">
+          {mode === 'current' && <Button
+            variant="outline"
+            onClick={() => void clearRecommendations(activeTenantId)}
+            disabled={loading || anyRunning || clearing !== null || !analyses[activeTenantId]}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {clearing === activeTenantId ? 'Clearing…' : 'Clear recommendations'}
+          </Button>}
+          <Button onClick={() => void runTargets()} disabled={loading || anyRunning || clearing !== null || !allEnabled}>
+            <Bot className={cn('mr-2 h-4 w-4', anyRunning && 'animate-pulse')} />
+            {anyRunning ? `Analyzing ${running.size} client${running.size === 1 ? '' : 's'}…` : mode === 'all' ? 'Analyze all clients' : 'Analyze client'}
+          </Button>
+        </div>}
       />
 
       <div className="mb-6 inline-flex rounded-lg border bg-muted/40 p-1">
@@ -234,15 +282,39 @@ export function SalesOpportunitiesPage() {
       {mode === 'current' && currentContext && (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-3">
-            <Card><CardContent className="flex items-center gap-4 p-5"><FileCheck2 className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">ConnectWise agreement</p><p className="font-semibold">{currentContext.agreements[0]?.name ?? 'No agreement'}</p></div></CardContent></Card>
+            <Card><CardContent className="flex items-center gap-4 p-5"><FileCheck2 className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Active ConnectWise agreements</p><p className="text-2xl font-semibold">{currentContext.agreements.length}</p></div></CardContent></Card>
             <Card><CardContent className="flex items-center gap-4 p-5"><Ticket className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Tickets searched</p><p className="text-2xl font-semibold">{currentContext.ticketCount}</p></div></CardContent></Card>
             <Card><CardContent className="flex items-center gap-4 p-5"><ShieldAlert className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Churn risk</p><p className="text-2xl font-semibold">{currentContext.churn?.score ?? '—'}<span className="text-sm text-muted-foreground"> / 100</span></p></div></CardContent></Card>
           </div>
 
-          {currentContext.agreements.map((agreement) => (
-            <Card id={`agreement-${agreement.id}`} key={agreement.id} className="mb-8 scroll-mt-20">
-              <CardHeader><div className="flex flex-wrap items-center gap-3"><BriefcaseBusiness className="h-5 w-5 text-primary" /><CardTitle>{agreement.name}</CardTitle><Badge>{agreement.status}</Badge><Badge variant="outline">Demo ConnectWise data</Badge></div></CardHeader>
-              <CardContent className="space-y-5">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Active agreements</h2>
+            <p className="text-sm text-muted-foreground">Expand an agreement to review its additions and contract details.</p>
+          </div>
+
+          {currentContext.agreements.map((agreement, agreementIndex) => (
+            <Card id={`agreement-${agreement.id}`} key={agreement.id} className="mb-3 scroll-mt-20">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-6 py-4 text-left"
+                aria-expanded={expandedAgreements.has(agreement.id)}
+                aria-controls={`agreement-details-${agreement.id}`}
+                onClick={() => toggleAgreement(agreement.id)}
+              >
+                <BriefcaseBusiness className="h-5 w-5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-base">{agreement.name}</CardTitle>
+                    <Badge variant="secondary">Agreement {agreementIndex + 1} of {currentContext.agreements.length}</Badge>
+                    <Badge>{agreement.status}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {agreement.lineItems.length} active addition{agreement.lineItems.length === 1 ? '' : 's'} · {money(agreement.monthlyAmount)}/month
+                  </p>
+                </div>
+                <ChevronDown className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform', expandedAgreements.has(agreement.id) && 'rotate-180')} />
+              </button>
+              {expandedAgreements.has(agreement.id) && <CardContent id={`agreement-details-${agreement.id}`} className="space-y-5 border-t pt-5">
                 <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div><p className="text-muted-foreground">Agreement ID</p><p className="font-medium">{agreement.externalId}</p></div>
                   <div><p className="text-muted-foreground">Term</p><p className="font-medium">{agreement.startDate} – {agreement.endDate}</p></div>
@@ -252,17 +324,21 @@ export function SalesOpportunitiesPage() {
                   <div className="sm:col-span-2"><p className="text-muted-foreground">SLA</p><p className="font-medium">{agreement.sla}</p></div>
                   <div><p className="text-muted-foreground">Billing</p><p className="font-medium capitalize">{agreement.billingCycle}</p></div>
                 </div>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Line item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Monthly</th></tr></thead><tbody>
-                    {agreement.lineItems.map((item) => <tr key={item.id} className="border-t"><td className="px-3 py-2"><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.description}</p></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.monthlyAmount)}</td></tr>)}
-                  </tbody></table>
+                <div>
+                  <div className="mb-2 flex items-baseline justify-between gap-3"><p className="font-semibold">Active additions</p><p className="text-xs text-muted-foreground">{agreement.lineItems.length} on this agreement</p></div>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Line item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Monthly</th></tr></thead><tbody>
+                      {agreement.lineItems.map((item) => <tr key={item.id} className="border-t"><td className="px-3 py-2"><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.description}</p></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.monthlyAmount)}</td></tr>)}
+                      {agreement.lineItems.length === 0 && <tr className="border-t"><td className="px-3 py-4 text-center text-muted-foreground" colSpan={3}>No active additions on this agreement.</td></tr>}
+                    </tbody></table>
+                  </div>
                 </div>
                 <div className="grid gap-4 text-sm md:grid-cols-3">
                   <div><p className="font-semibold">Contacts</p>{agreement.contractContacts.map((contact) => <p key={contact.email} className="mt-1 text-muted-foreground">{contact.name} · {contact.role}</p>)}</div>
                   <div><p className="font-semibold">Add-ons</p>{agreement.addOns.map((item) => <p key={item} className="mt-1 text-muted-foreground">• {item}</p>)}</div>
                   <div><p className="font-semibold">Exclusions</p>{agreement.exclusions.map((item) => <p key={item} className="mt-1 text-muted-foreground">• {item}</p>)}</div>
                 </div>
-              </CardContent>
+              </CardContent>}
             </Card>
           ))}
         </>
@@ -280,7 +356,7 @@ export function SalesOpportunitiesPage() {
         <Card><CardContent className="py-12 text-center"><Bot className="mx-auto h-9 w-9 text-muted-foreground" /><h2 className="mt-3 font-semibold">No saved opportunities yet</h2><p className="mt-1 text-sm text-muted-foreground">Run the agent to evaluate agreements, tickets, churn, and configured offerings.</p></CardContent></Card>
       ) : (
         <section><div className="mb-4"><h2 className="text-lg font-semibold">Ranked opportunities</h2><p className="text-sm text-muted-foreground">{findings.length} evidence-backed finding{findings.length === 1 ? '' : 's'} from the latest analysis</p></div><div className="grid gap-5 xl:grid-cols-2">
-          {findings.map((finding) => <OpportunityCard key={`${finding.tenantId}:${finding.fingerprint}`} finding={finding} tenantName={contexts[finding.tenantId]?.tenantName ?? finding.tenantId} sending={sending === finding.fingerprint} onSend={() => void handleSend(finding)} />)}
+          {findings.map((finding) => <OpportunityCard key={`${finding.tenantId}:${finding.fingerprint}`} finding={finding} tenantName={contexts[finding.tenantId]?.tenantName ?? finding.tenantId} sending={sending === finding.fingerprint} onSend={() => void handleSend(finding)} onEvidenceOpen={openEvidence} />)}
         </div></section>
       )}
 

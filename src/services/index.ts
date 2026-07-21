@@ -1,6 +1,6 @@
 import type { Services } from './types';
-import { mockPeopleService } from './mock/people';
-import { mockDeviceService } from './mock/devices';
+import { restPeopleService } from './rest/people';
+import { restDeviceService } from './rest/devices';
 import { mockLicenseService } from './mock/licenses';
 import { mockAssetService } from './mock/assets';
 import { mockRoadmapService } from './mock/roadmap';
@@ -19,12 +19,12 @@ import { persistentFormService } from './rest/forms';
 import { demoMetricsService } from './demoMetrics';
 import { installDrilldownCache } from './cache/drilldownCache';
 
-/** Sample-only service graph. Immutable catalog data is local; mutable demo data uses SQLite-backed APIs. */
+/** Vendor-aware service graph. The backend selects mapped read APIs or demo fallbacks per tenant. */
 export function buildServices(): Services {
   return installDrilldownCache({
     tickets: restTicketService,
-    people: mockPeopleService,
-    devices: mockDeviceService,
+    people: restPeopleService,
+    devices: restDeviceService,
     licenses: mockLicenseService,
     assets: mockAssetService,
     roadmap: mockRoadmapService,

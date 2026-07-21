@@ -3,6 +3,7 @@ import type {
   ActionDefDto,
   AdminUser,
   ClientView,
+  ConnectWiseCompanyView,
   CreateActionDefInput,
   CreateUserInput,
   TenantThemeTokens,
@@ -25,6 +26,8 @@ export interface UpdateClientPatch {
   status?: string;
   vertical?: string;
   theme?: Partial<TenantThemeTokens>;
+  connectWiseCompanyId?: number | null;
+  ninjaOneOrganizationId?: number | null;
 }
 
 export const adminApi = {
@@ -36,6 +39,12 @@ export const adminApi = {
   },
   updateClient(id: string, patch: UpdateClientPatch): Promise<ClientView> {
     return request<ClientView>(`/clients/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  },
+  connectWiseCompanies(search = ''): Promise<ConnectWiseCompanyView[]> {
+    return request<ConnectWiseCompanyView[]>(`/connectwise/companies?search=${encodeURIComponent(search)}`);
+  },
+  importConnectWiseCompany(companyId: number): Promise<ClientView> {
+    return request<ClientView>('/connectwise/import', { method: 'POST', body: JSON.stringify({ companyId }) });
   },
   users(): Promise<AdminUser[]> {
     return request<AdminUser[]>('/users');

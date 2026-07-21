@@ -4,6 +4,7 @@ import type { AssistantCitation, AssistantMessage, AssistantStreamEvent } from '
 import { assistantRepo } from '../db/repositories';
 import { BadRequestError, NotFoundError } from '../framework/errors';
 import type { AssistantModelProvider } from './provider';
+import type { VendorDataService } from '../integrations/vendor-data';
 import { isPortalDomain } from './provider';
 import {
   buildPortalRecords,
@@ -15,6 +16,7 @@ import {
 
 interface RegisterAssistantRoutesOptions {
   provider: AssistantModelProvider | null;
+  vendorData?: VendorDataService;
 }
 
 function tenantHeader(req: FastifyRequest): string {
@@ -159,7 +161,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
       accessibleScopes.sort((left, right) =>
         Number(right.tenantId === scope.tenantId) - Number(left.tenantId === scope.tenantId));
       const records = (await Promise.all(accessibleScopes.map((accessibleScope) =>
-        buildPortalRecords(app.db, app.configStore, accessibleScope))))
+        buildPortalRecords(app.db, app.configStore, accessibleScope, options.vendorData))))
         .flat()
         // Queue Attention is an MSP-wide snapshot, so include it once rather
         // than duplicating the same records for every accessible client.

@@ -5,6 +5,10 @@ export interface Page<T> {
   page: number;
   pageSize: number;
   total: number;
+  /** Present on vendor-backed list routes. */
+  source?: 'demo' | 'connectwise';
+  /** True when a configured vendor read failed and demo data was returned. */
+  fallback?: boolean;
 }
 
 export interface ListParams {
@@ -898,6 +902,7 @@ export interface SalesOpportunityService {
   context(tenantId: string): Promise<SalesOpportunityContext>;
   latest(tenantId: string): Promise<SalesOpportunityAnalysis | null>;
   analyze(tenantId: string): Promise<SalesOpportunityAnalysis>;
+  clear(tenantId: string): Promise<void>;
   sendToConnectWise(tenantId: string, fingerprint: string): Promise<SalesOpportunityFinding>;
 }
 

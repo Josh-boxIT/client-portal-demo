@@ -25,6 +25,10 @@ export interface TenantPublic {
   supportPhone: string | null;
   supportHours: string | null;
   status: string;
+  dataSource: {
+    connectWise: boolean;
+    ninjaOne: boolean;
+  };
 }
 
 // ── TenantTheme (portal runtime shape) ───────────────────────────────────────
@@ -39,6 +43,7 @@ export interface TenantTheme {
   cssVars: Record<string, string>;
   supportPhone: string;
   supportHours: string;
+  dataSource: TenantPublic['dataSource'];
 }
 
 // ─── Brightwater Logistics ────────────────────────────────────────────────────
@@ -254,5 +259,6 @@ export function tenantThemeFromRecord(rec: TenantPublic): TenantTheme {
     cssVars,
     supportPhone: rec.supportPhone ?? '',
     supportHours: rec.supportHours ?? '',
+    dataSource: rec.dataSource,
   };
 }

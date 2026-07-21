@@ -14,6 +14,9 @@ export const restSalesOpportunityService: SalesOpportunityService = {
   analyze(tenantId) {
     return rest.createPath<SalesOpportunityAnalysis>(tenantId, 'sales-opportunities/analyze', {});
   },
+  clear(tenantId) {
+    return rest.deletePath(tenantId, 'sales-opportunities/latest');
+  },
   sendToConnectWise(tenantId, fingerprint) {
     return rest.createPath<SalesOpportunityFinding>(
       tenantId,

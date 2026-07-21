@@ -1,7 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ConfigStore } from '../framework/config-store';
 import { ApiError } from '../framework/errors';
-import { getClient, listClientsView, updateClient, type UpdateClientPatch } from './clients.controller';
+import {
+  getClient,
+  importConnectWiseCompany,
+  listClientsView,
+  markImportedCompanies,
+  updateClient,
+  type UpdateClientPatch,
+} from './clients.controller';
 import { requireRole } from './require-role';
 import {
   createUser,
@@ -29,8 +36,13 @@ import {
   type ProductCatalogInput,
   type ProductCatalogPatch,
 } from './product-catalog.controller';
+import type { VendorDataService } from '../integrations/vendor-data';
 
-export function registerAdminRoutes(app: FastifyInstance, configStore: ConfigStore): void {
+export function registerAdminRoutes(
+  app: FastifyInstance,
+  configStore: ConfigStore,
+  vendorData: VendorDataService,
+): void {
   app.get('/api/admin/clients', { preHandler: requireRole('admin', 'editor') }, async () => {
     return listClientsView(app.db);
   });
@@ -41,13 +53,60 @@ export function registerAdminRoutes(app: FastifyInstance, configStore: ConfigSto
 
   app.patch('/api/admin/clients/:id', { preHandler: requireRole('admin', 'editor') }, async (req) => {
     if (!req.adminIdentity) throw new ApiError(401, 'unauthenticated', 'Admin identity required');
-    return updateClient(
+    const id = (req.params as { id: string }).id;
+    const previousCompanyId = configStore.tenantById(id)?.connectWiseCompanyId;
+    const updated = await updateClient(
       app.db,
       configStore,
-      (req.params as { id: string }).id,
+      id,
       req.body as UpdateClientPatch,
       req.adminIdentity.email,
     );
+    const tenant = configStore.tenantById(updated.id);
+    if (tenant && previousCompanyId !== tenant.connectWiseCompanyId) {
+      await vendorData.refreshTenant(tenant, true);
+    }
+    return updated;
+  });
+
+  app.get('/api/admin/connectwise/companies', { preHandler: requireRole('admin', 'editor') }, async (req) => {
+    if (!vendorData.connectWiseConfigured) {
+      throw new ApiError(503, 'connectwise_not_configured', 'ConnectWise credentials are not configured');
+    }
+    const search = typeof (req.query as { search?: unknown }).search === 'string'
+      ? (req.query as { search: string }).search.trim()
+      : '';
+    try {
+      return markImportedCompanies(app.db, await vendorData.searchConnectWiseCompanies(search));
+    } catch {
+      throw new ApiError(502, 'connectwise_unavailable', 'Could not load companies from ConnectWise');
+    }
+  });
+
+  app.post('/api/admin/connectwise/import', { preHandler: requireRole('admin', 'editor') }, async (req, reply) => {
+    if (!vendorData.connectWiseConfigured) {
+      throw new ApiError(503, 'connectwise_not_configured', 'ConnectWise credentials are not configured');
+    }
+    const companyId = (req.body as { companyId?: unknown })?.companyId;
+    if (!Number.isInteger(companyId) || Number(companyId) <= 0) {
+      throw new ApiError(400, 'bad_request', 'companyId must be a positive integer');
+    }
+    let company;
+    try {
+      company = await vendorData.connectWiseCompany(Number(companyId));
+    } catch {
+      throw new ApiError(502, 'connectwise_unavailable', 'Could not load the company from ConnectWise');
+    }
+    if (!company) throw new ApiError(404, 'not_found', 'ConnectWise company not found');
+    const imported = await importConnectWiseCompany(
+      app.db,
+      configStore,
+      company,
+      req.adminIdentity!.email,
+    );
+    const tenant = configStore.tenantById(imported.id);
+    if (tenant) await vendorData.refreshTenant(tenant, true);
+    return reply.status(201).send(imported);
   });
 
   app.get('/api/admin/users', { preHandler: requireRole('admin') }, async () => listUsers(app.db));
