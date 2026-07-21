@@ -13,6 +13,7 @@ import type {
   ConnectWiseChurnCompany,
   ConnectWiseChurnInvoice,
 } from '../churn/scoring';
+import { CHURN_INVOICE_TERMS_DAYS } from '../churn/scoring';
 
 type JsonObject = Record<string, unknown>;
 type FetchLike = typeof fetch;
@@ -269,8 +270,8 @@ export function normalizeConnectWiseChurnInvoice(
 ): ConnectWiseChurnInvoice | null {
   const id = number(row.id);
   const invoiceDate = timestamp(row.date);
-  const dueDate = timestamp(row.dueDate);
-  if (id === undefined || invoiceDate === undefined || dueDate === undefined) return null;
+  if (id === undefined || invoiceDate === undefined) return null;
+  const dueDate = invoiceDate + CHURN_INVOICE_TERMS_DAYS * 86_400_000;
   const balance = number(row.balance) ?? 0;
   const paymentDates = paymentRows.map((payment) => timestamp(payment.paymentDate))
     .filter((value): value is number => value !== undefined);

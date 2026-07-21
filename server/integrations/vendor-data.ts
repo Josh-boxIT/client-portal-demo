@@ -10,6 +10,7 @@ import type {
   ConnectWiseChurnInputs,
   ConnectWiseChurnInvoice,
 } from '../churn/scoring';
+import { CHURN_INVOICE_TERMS_DAYS } from '../churn/scoring';
 import {
   ConnectWiseClient,
   type ConnectWiseCompanySummary,
@@ -216,11 +217,13 @@ export class VendorDataService {
       const normalized = await Promise.all(batch.map(async (row) => {
         const id = typeof row.id === 'number' ? row.id : undefined;
         const invoiceDate = typeof row.date === 'string' ? Date.parse(row.date) : NaN;
-        const dueDate = typeof row.dueDate === 'string' ? Date.parse(row.dueDate) : NaN;
+        const effectiveDueDate = Number.isFinite(invoiceDate)
+          ? invoiceDate + CHURN_INVOICE_TERMS_DAYS * 86_400_000
+          : NaN;
         const balance = typeof row.balance === 'number' ? row.balance : 0;
         const shouldLoadPayments = id !== undefined && balance <= 0
           && Number.isFinite(invoiceDate) && invoiceDate >= cutoff
-          && Number.isFinite(dueDate) && dueDate <= now.getTime();
+          && Number.isFinite(effectiveDueDate) && effectiveDueDate <= now.getTime();
         const payments = shouldLoadPayments
           ? await this.connectWise!.listInvoicePayments(id).catch(() => [])
           : [];

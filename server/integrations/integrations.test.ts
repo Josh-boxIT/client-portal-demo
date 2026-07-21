@@ -13,6 +13,7 @@ import {
   isConnectWiseAgreementActive,
   isConnectWiseAgreementAdditionActive,
   normalizeConnectWiseAgreement,
+  normalizeConnectWiseChurnInvoice,
 } from './connectwise';
 import { ninjaOrganizationFilter, NinjaOneClient } from './ninjaone';
 import { CONNECTWISE_CACHE_REFRESH_MS } from './vendor-data';
@@ -310,6 +311,21 @@ describe('vendor API request construction', () => {
       expect(agreement?.monthlyAmount).toBe(testCase.expectedBaseAndAddition);
       expect(agreement?.lineItems[0].monthlyAmount).toBe(testCase.expectedAddition);
     }
+  });
+
+  it('applies demo Net 30 terms when classifying invoice payments', () => {
+    const invoice = normalizeConnectWiseChurnInvoice({
+      id: 45051,
+      date: '2026-04-30T00:00:00Z',
+      dueDate: '2026-04-30T00:00:00Z',
+      total: 1805.4,
+      balance: 0,
+    }, [{ paymentDate: '2026-05-29T07:00:00Z' }], new Date('2026-07-21T12:00:00Z'));
+
+    expect(invoice).toMatchObject({
+      dueDate: '2026-05-30T00:00:00.000Z',
+      paidOnTime: true,
+    });
   });
 
   it('uses documented ConnectWise slash-reference conditions and GET-only reads', async () => {

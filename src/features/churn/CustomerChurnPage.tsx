@@ -260,7 +260,7 @@ export function CustomerChurnPage() {
           <MetricCard
             label="Days past due"
             value={assessment.daysPastDue}
-            detail="Based on the account's most overdue invoice"
+            detail="Based on the account's most overdue invoice using demo Net 30 terms"
             icon={<ReceiptText className="h-5 w-5" aria-hidden="true" />}
             accentClass={assessment.daysPastDue >= 30 ? 'text-red-600' : 'text-orange-600'}
             source={assessment.metricSources.daysPastDue}
@@ -268,7 +268,7 @@ export function CustomerChurnPage() {
           <MetricCard
             label="On-time payment ratio"
             value={`${assessment.onTimePaymentRatio}%`}
-            detail="Invoices paid on or before their due date"
+            detail="Invoices paid within the demo Net 30 payment term"
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
             progress={assessment.onTimePaymentRatio}
             accentClass={assessment.onTimePaymentRatio >= 90 ? 'text-green-600' : 'text-amber-600'}

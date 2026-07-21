@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { ChurnAssessment } from '@/data/seed/customerChurn';
+import { CHURN_INVOICE_TERMS_DAYS } from './scoring';
 
 export interface ChurnNarrativeInput {
   tenantId: string;
@@ -68,6 +69,7 @@ Use only the supplied deterministic score and metrics. Metric source labels are 
         },
         metricSources: input.assessment.metricSources,
         windowDays: 90,
+        invoiceTermsDays: CHURN_INVOICE_TERMS_DAYS,
       }),
       text: { format: OUTPUT_FORMAT, verbosity: 'low' },
       reasoning: { effort: this.reasoningEffort },

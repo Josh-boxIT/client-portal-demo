@@ -7,6 +7,7 @@ import {
 } from '@/data/seed/customerChurn';
 
 export const CHURN_WINDOW_DAYS = 90;
+export const CHURN_INVOICE_TERMS_DAYS = 30;
 
 export const neutralChurnMetrics: Pick<ChurnAssessment, ChurnMetricKey> = {
   accountAgeYears: 5,
