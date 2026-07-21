@@ -9,6 +9,7 @@ import { isPortalDomain } from './provider';
 import {
   buildPortalRecords,
   resolvePortalAccess,
+  resolvePortalAccessScopes,
   searchPortalRecords,
   type PortalRecord,
 } from './portal-data';
@@ -48,6 +49,7 @@ function citation(record: PortalRecord): AssistantCitation {
     recordId: record.recordId,
     title: record.title,
     href: record.href,
+    tenantId: record.tenantId,
   };
 }
 
@@ -149,11 +151,21 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
         return;
       }
 
-      const [messages, records] = await Promise.all([
+      const [messages, accessibleScopes] = await Promise.all([
         repo.listMessages(scope.userId, scope.tenantId, conversationId),
-        buildPortalRecords(app.db, app.configStore, scope, options.vendorData),
+        resolvePortalAccessScopes(app.db, app.configStore, req.adminIdentity!),
       ]);
       if (!messages) throw new NotFoundError('Conversation not found');
+      // Keep the selected client first for predictable results, while allowing
+      // every lookup to search all clients the user is authorized to access.
+      accessibleScopes.sort((left, right) =>
+        Number(right.tenantId === scope.tenantId) - Number(left.tenantId === scope.tenantId));
+      const records = (await Promise.all(accessibleScopes.map((accessibleScope) =>
+        buildPortalRecords(app.db, app.configStore, accessibleScope, options.vendorData))))
+        .flat()
+        // Queue Attention is an MSP-wide snapshot, so include it once rather
+        // than duplicating the same records for every accessible client.
+        .filter((record) => record.domain !== 'queue-attention' || record.tenantId === scope.tenantId);
       const recordBySource = new Map(records.map((record) => [record.sourceId, record]));
 
       const result = await options.provider.generate({

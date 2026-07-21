@@ -851,6 +851,8 @@ export interface AssistantCitation {
   recordId: string;
   title: string;
   href: string;
+  /** Client that owns the cited record. Older persisted citations may omit it. */
+  tenantId?: string;
 }
 
 export interface AssistantConversation {

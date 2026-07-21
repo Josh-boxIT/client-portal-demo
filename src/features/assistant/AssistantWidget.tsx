@@ -50,7 +50,7 @@ function pendingMessage(conversationId: string, role: 'user' | 'assistant', cont
 
 export function AssistantWidget() {
   const { assistant } = useServices();
-  const { activeTenantId } = useSessionStore();
+  const { activeTenantId, switchTenant } = useSessionStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
@@ -229,7 +229,8 @@ export function AssistantWidget() {
     }
   }
 
-  function openCitation(href: string) {
+  function openCitation(href: string, tenantId?: string) {
+    if (tenantId && tenantId !== activeTenantId) switchTenant(tenantId);
     navigate(href);
     setOpen(false);
   }
@@ -380,7 +381,7 @@ export function AssistantWidget() {
                                   key={source.sourceId}
                                   type="button"
                                   className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground"
-                                  onClick={() => openCitation(source.href)}
+                                  onClick={() => openCitation(source.href, source.tenantId)}
                                 >
                                   <ExternalLink className="h-3 w-3 shrink-0" />
                                   <span className="truncate">{source.title}</span>
