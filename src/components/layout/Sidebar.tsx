@@ -43,13 +43,13 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'QBRs', href: '/qbrs', icon: <PresentationIcon className="h-4 w-4" /> },
       { label: 'Budget', href: '/budget', icon: <DollarSign className="h-4 w-4" /> },
       { label: 'Risk register', href: '/risk', icon: <ShieldAlert className="h-4 w-4" /> },
-      { label: 'Customer Churn', href: '/customer-churn', icon: <UserMinus className="h-4 w-4" /> },
     ],
   },
   {
     label: 'INSIGHTS',
     items: [
       { label: 'Reports & metrics', href: '/reports', icon: <BarChart3 className="h-4 w-4" /> },
+      { label: 'Customer Churn', href: '/customer-churn', icon: <UserMinus className="h-4 w-4" /> },
       {
         label: 'Queue Attention',
         href: '/queue-attention',

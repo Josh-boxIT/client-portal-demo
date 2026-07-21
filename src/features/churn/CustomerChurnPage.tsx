@@ -1,54 +1,27 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import {
+  ArrowLeft,
   Archive,
   CalendarDays,
   CheckCircle2,
   CreditCard,
   Inbox,
+  ListChecks,
   ReceiptText,
   Repeat2,
   Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { getChurnAssessment } from '@/data/seed/customerChurn';
 import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/store/auth';
+import { useTenantStore } from '@/theme/tenantStore';
 import { cn } from '@/lib/utils';
-
-function getRiskTone(score: number) {
-  if (score >= 80) {
-    return {
-      label: 'Critical risk',
-      badgeClass: 'border-red-200 bg-red-100 text-red-800',
-      scoreClass: 'text-red-600',
-      ring: '#dc2626',
-    };
-  }
-  if (score >= 60) {
-    return {
-      label: 'High risk',
-      badgeClass: 'border-orange-200 bg-orange-100 text-orange-800',
-      scoreClass: 'text-orange-600',
-      ring: '#ea580c',
-    };
-  }
-  if (score >= 30) {
-    return {
-      label: 'Moderate risk',
-      badgeClass: 'border-amber-200 bg-amber-100 text-amber-800',
-      scoreClass: 'text-amber-600',
-      ring: '#d97706',
-    };
-  }
-  return {
-    label: 'Low risk',
-    badgeClass: 'border-green-200 bg-green-100 text-green-800',
-    scoreClass: 'text-green-600',
-    ring: '#16a34a',
-  };
-}
+import { formatAssessmentDate, getAccessibleChurnRows, getRiskTone } from './churnData';
 
 interface MetricCardProps {
   label: string;
@@ -87,16 +60,40 @@ function MetricCard({
 }
 
 export function CustomerChurnPage() {
-  const { activeTenantId } = useSessionStore();
-  const assessment = getChurnAssessment(activeTenantId) ?? getChurnAssessment('brightwater')!;
+  const { customerId = '' } = useParams();
+  const { activeTenantId, switchTenant } = useSessionStore();
+  const { identity, accessibleClientIds } = useAuthStore();
+  const { tenants } = useTenantStore();
+  const row = getAccessibleChurnRows(identity, accessibleClientIds, tenants)
+    .find(({ customer }) => customer.id === customerId);
+  const customer = row?.customer;
+  const assessment = row?.assessment;
+
+  useEffect(() => {
+    if (customer && activeTenantId !== customer.id) {
+      switchTenant(customer.id);
+    }
+  }, [activeTenantId, customer, switchTenant]);
+
+  if (!customer || !assessment) {
+    return <Navigate to="/customer-churn" replace />;
+  }
   const tone = getRiskTone(assessment.score);
 
   return (
     <div>
       <PageHeader
-        title="Customer Churn"
+        title={`Customer Churn: ${customer.name}`}
         subtitle="AI-assisted account retention risk assessment"
-        actions={<Badge variant="outline">Last assessed Jul 20, 2026</Badge>}
+        leading={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/customer-churn">
+              <ArrowLeft aria-hidden="true" />
+              Return
+            </Link>
+          </Button>
+        }
+        actions={<Badge variant="outline">Last assessed {formatAssessmentDate(assessment.assessedAt)}</Badge>}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -117,9 +114,32 @@ export function CustomerChurnPage() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-base leading-7 text-foreground/90">{assessment.narrative}</p>
-            <div className="mt-5 rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+          <CardContent className="space-y-6">
+            <section aria-labelledby="assessment-heading">
+              <h3 id="assessment-heading" className="text-sm font-semibold">
+                Assessment
+              </h3>
+              <p className="mt-2 text-base leading-7 text-foreground/90">
+                {assessment.assessment}
+              </p>
+            </section>
+
+            <section
+              className="rounded-lg border border-primary/20 bg-primary/5 p-4"
+              aria-labelledby="suggested-actions-heading"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <ListChecks className="h-4 w-4" aria-hidden="true" />
+                <h3 id="suggested-actions-heading" className="text-sm font-semibold">
+                  Suggested actions
+                </h3>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-foreground/90">
+                {assessment.suggestedActions}
+              </p>
+            </section>
+
+            <div className="rounded-md border border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
               AI-generated assessment. Review source data and account context before taking action.
             </div>
           </CardContent>

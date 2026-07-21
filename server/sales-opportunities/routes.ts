@@ -81,7 +81,12 @@ export function registerSalesOpportunityRoutes(
       tenantName: input.tenantName,
       agreements: input.agreements,
       ticketCount: input.tickets.length,
-      churn: input.churn ? { score: input.churn.score, narrative: input.churn.narrative } : null,
+      churn: input.churn ? {
+        score: input.churn.score,
+        assessment: input.churn.assessment,
+        suggestedActions: input.churn.suggestedActions,
+        assessedAt: input.churn.assessedAt,
+      } : null,
     };
   });
 
@@ -107,7 +112,8 @@ export function registerSalesOpportunityRoutes(
       sourceType: 'ticket', sourceId: ticket.id, label: `${ticket.number}: ${ticket.subject}`, href: `/tickets/${encodeURIComponent(ticket.id)}`,
     });
     if (input.churn) evidence.set('churn:assessment', {
-      sourceType: 'churn', sourceId: 'assessment', label: `Churn risk score ${input.churn.score}`, href: '/customer-churn',
+      sourceType: 'churn', sourceId: 'assessment', label: `Churn risk score ${input.churn.score}`,
+      href: `/customer-churn/${encodeURIComponent(input.tenantId)}`,
     });
 
     const findings: SalesOpportunityFinding[] = [];

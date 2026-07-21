@@ -370,7 +370,9 @@ export interface SalesOpportunityContext {
   ticketCount: number;
   churn: {
     score: number;
-    narrative: string;
+    assessment: string;
+    suggestedActions: string;
+    assessedAt: string;
   } | null;
 }
 

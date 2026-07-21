@@ -5,7 +5,6 @@ import {
   Bot,
   CheckCircle2,
   Clock3,
-  Database,
   Eye,
   Gauge,
   Layers3,
@@ -520,28 +519,6 @@ export function QueueAttentionPage() {
                 </span>
               </div>
             </div>
-          </section>
-
-          <section className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-amber-300" />
-              <h2 className="text-sm font-semibold text-slate-100">Data quality</h2>
-              <span className="ml-auto rounded-full border border-amber-400/25 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                PARTIAL
-              </span>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              Source fresh through{' '}
-              {formatSnapshotTime(snapshot.dataQuality.ticketSourceFreshThrough)}
-            </p>
-            <ul className="mt-3 space-y-2">
-              {snapshot.dataQuality.limitations.map((limitation) => (
-                <li key={limitation} className="flex gap-2 text-xs leading-5 text-slate-400">
-                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
-                  {limitation}
-                </li>
-              ))}
-            </ul>
           </section>
 
           <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
