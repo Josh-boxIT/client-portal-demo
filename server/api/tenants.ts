@@ -1,6 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { tenantRepo } from '../db/repositories';
-import type { TenantThemeTokens, LogoDescriptor } from '../db/schema';
+import {
+  tenantDisplayName,
+  type LogoDescriptor,
+  type Tenant,
+  type TenantThemeTokens,
+} from '../db/schema';
 
 export interface TenantPublic {
   id: string;
@@ -18,6 +23,24 @@ export interface TenantPublic {
   };
 }
 
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2)
+    .map((word) => word[0]?.toUpperCase()).join('') || 'CL';
+}
+
+function publicLogo(tenant: Tenant): LogoDescriptor {
+  if (!tenant.displayName?.trim()) return tenant.logo;
+  const text = initials(tenantDisplayName(tenant));
+  if (tenant.logo.kind === 'generated') return { ...tenant.logo, text };
+  return {
+    kind: 'generated',
+    shape: 'hex',
+    primary: `hsl(${tenant.theme.primary})`,
+    accent: `hsl(${tenant.theme.accent})`,
+    text,
+  };
+}
+
 export function registerTenantRoutes(app: FastifyInstance): void {
   app.get('/api/tenants', async () => {
     const repo = tenantRepo(app.db);
@@ -27,10 +50,10 @@ export function registerTenantRoutes(app: FastifyInstance): void {
       .map((t) => ({
         id: t.id,
         slug: t.slug,
-        name: t.name,
+        name: tenantDisplayName(t),
         vertical: t.vertical ?? null,
         theme: t.theme,
-        logo: t.logo,
+        logo: publicLogo(t),
         supportPhone: t.supportPhone ?? null,
         supportHours: t.supportHours ?? null,
         status: t.status,

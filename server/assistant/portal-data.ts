@@ -8,6 +8,7 @@ import { getChurnAssessment } from '@/data/seed/customerChurn';
 import type { Ticket } from '@/services/types';
 import type { VendorDataService } from '../integrations/vendor-data';
 import type { ChurnService } from '../churn/service';
+import { tenantDisplayName } from '../db/schema';
 
 export const PORTAL_DOMAINS = [
   'actions',
@@ -215,7 +216,7 @@ export async function buildPortalRecords(
 ): Promise<PortalRecord[]> {
   const seed = getSeed(scope.tenantId);
   const tenant = configStore.tenantById(scope.tenantId)!;
-  const clientName = tenant.name;
+  const clientName = tenantDisplayName(tenant);
   const [people, devices, tickets] = vendorData
     ? await Promise.all([
         vendorData.people(tenant).then((result) => result.data),

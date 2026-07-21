@@ -14,6 +14,7 @@ import { resolvePortalAccess, ticketsForScope } from '../assistant/portal-data';
 import type { OpportunityModelSuggestion, SalesOpportunityModelProvider } from './provider';
 import type { VendorDataService } from '../integrations/vendor-data';
 import type { ChurnService } from '../churn/service';
+import { tenantDisplayName } from '../db/schema';
 
 function tenantHeader(req: FastifyRequest): string {
   const raw = req.headers['x-tenant-id'];
@@ -86,7 +87,7 @@ export function registerSalesOpportunityRoutes(
     ]);
     return {
       tenantId,
-      tenantName: tenant.name,
+      tenantName: tenantDisplayName(tenant),
       tickets: ticketResult.data,
       products: rows.map(productCatalogDto).filter((product) => product.enabled),
       agreements: agreementResult.data,

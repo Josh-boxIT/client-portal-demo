@@ -50,6 +50,13 @@
       "when": 1784650646230,
       "tag": "0006_thankful_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784654562933,
+      "tag": "0007_flashy_apocalypse",
+      "breakpoints": true
     }
   ]
 }

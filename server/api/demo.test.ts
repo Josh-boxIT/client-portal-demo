@@ -169,8 +169,36 @@ describe('sample-only demo API', () => {
     const headers = { authorization: `Bearer ${admin.token}` };
     const clients = await app.inject({ method: 'GET', url: '/api/admin/clients', headers });
     expect(clients.json()).toHaveLength(3);
-    const updated = await app.inject({ method: 'PATCH', url: '/api/admin/clients/brightwater', headers, payload: { name: 'Brightwater Demo' } });
-    expect(updated.json().name).toBe('Brightwater Demo');
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: '/api/admin/clients/brightwater',
+      headers,
+      payload: { displayName: 'Coastal Shipping' },
+    });
+    expect(updated.json()).toMatchObject({
+      name: 'Brightwater Logistics',
+      displayName: 'Coastal Shipping',
+    });
+
+    const publicTenants = await app.inject({ method: 'GET', url: '/api/tenants' });
+    const publicClient = publicTenants.json().tenants.find((tenant: { id: string }) => tenant.id === 'brightwater');
+    expect(publicClient).toMatchObject({
+      name: 'Coastal Shipping',
+      logo: { kind: 'generated', text: 'CS' },
+      dataSource: { connectWise: false, ninjaOne: false },
+    });
+    expect(JSON.stringify(publicClient)).not.toContain('Brightwater Logistics');
+
+    const reset = await app.inject({
+      method: 'PATCH',
+      url: '/api/admin/clients/brightwater',
+      headers,
+      payload: { displayName: '   ' },
+    });
+    expect(reset.json().displayName).toBeNull();
+    const resetPublic = await app.inject({ method: 'GET', url: '/api/tenants' });
+    expect(resetPublic.json().tenants.find((tenant: { id: string }) => tenant.id === 'brightwater').name)
+      .toBe('Brightwater Logistics');
     for (const url of ['/api/admin/connections', '/api/admin/sync-status', '/api/admin/import']) {
       expect((await app.inject({ method: 'GET', url, headers })).statusCode).toBe(404);
     }

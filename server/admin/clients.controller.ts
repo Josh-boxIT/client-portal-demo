@@ -9,6 +9,7 @@ export interface ClientDto {
   id: string;
   slug: string;
   name: string;
+  displayName: string | null;
   status: string;
   vertical: string | null;
   theme: TenantThemeTokens;
@@ -18,6 +19,7 @@ export interface ClientDto {
 
 export interface UpdateClientPatch {
   name?: string;
+  displayName?: string | null;
   slug?: string;
   status?: string;
   vertical?: string;
@@ -65,6 +67,7 @@ function toDto(tenant: Tenant): ClientDto {
     id: tenant.id,
     slug: tenant.slug,
     name: tenant.name,
+    displayName: tenant.displayName ?? null,
     status: tenant.status,
     vertical: tenant.vertical,
     theme: tenant.theme,
@@ -175,6 +178,9 @@ export async function updateClient(
   if (!existing) throw new NotFoundError(`Client ${id} not found`);
   const updated = await repo.update(id, {
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+    ...(patch.displayName !== undefined
+      ? { displayName: patch.displayName?.trim() || null }
+      : {}),
     ...(patch.slug !== undefined ? { slug: patch.slug.trim() } : {}),
     ...(patch.status !== undefined ? { status: patch.status } : {}),
     ...(patch.vertical !== undefined ? { vertical: patch.vertical.trim() } : {}),
@@ -188,6 +194,7 @@ export async function updateClient(
     target: id,
     metadata: {
       name: updated.name,
+      displayName: updated.displayName,
       slug: updated.slug,
       connectWiseCompanyId: updated.connectWiseCompanyId,
       ninjaOneOrganizationId: updated.ninjaOneOrganizationId,

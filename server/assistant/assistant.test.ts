@@ -208,6 +208,33 @@ describe('permission-aware assistant API', () => {
     expect(provider.captured['form-submissions']).toEqual([]);
   });
 
+  it('uses the configured display name in records sent to the model', async () => {
+    const provider = new PermissionCaptureProvider();
+    const app = await makeApp(provider);
+    const admin = await login(app, 'alex.morgan@boxit.demo');
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: '/api/admin/clients/brightwater',
+      headers: { authorization: `Bearer ${admin}` },
+      payload: { displayName: 'Coastal Shipping' },
+    });
+    expect(updated.statusCode).toBe(200);
+
+    const viewer = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const headers = authHeaders(viewer);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'What can I see?', requestId: 'display-name-check' },
+    });
+
+    expect(provider.captured.tickets.length).toBeGreaterThan(0);
+    expect(provider.captured.tickets.every((record) => record.clientName === 'Coastal Shipping')).toBe(true);
+    expect(JSON.stringify(provider.captured.tickets)).not.toContain('Brightwater Logistics');
+  });
+
   it('does not expose churn while searching a client user\'s granted tenants', async () => {
     const provider = new NewDataCaptureProvider();
     const app = await makeApp(provider);

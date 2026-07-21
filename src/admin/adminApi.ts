@@ -22,6 +22,7 @@ function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface UpdateClientPatch {
   name?: string;
+  displayName?: string | null;
   slug?: string;
   status?: string;
   vertical?: string;

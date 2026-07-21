@@ -12,6 +12,7 @@ import { useTenantStore } from '@/theme/tenantStore';
 
 interface EditState {
   name: string;
+  displayName: string;
   slug: string;
   vertical: string;
   status: string;
@@ -25,6 +26,7 @@ interface EditState {
 function editState(client: ClientView): EditState {
   return {
     name: client.name,
+    displayName: client.displayName ?? '',
     slug: client.slug,
     vertical: client.vertical ?? '',
     status: client.status,
@@ -84,7 +86,8 @@ export function ClientsPage() {
     setImportingCompanyId(company.id);
     try {
       const imported = await adminApi.importConnectWiseCompany(company.id);
-      setClients((current) => [...current, imported].sort((a, b) => a.name.localeCompare(b.name)));
+      setClients((current) => [...current, imported].sort((a, b) =>
+        (a.displayName || a.name).localeCompare(b.displayName || b.name)));
       setCompanies((current) => current.map((candidate) => candidate.id === company.id
         ? { ...candidate, importedTenantId: imported.id }
         : candidate));
@@ -102,6 +105,7 @@ export function ClientsPage() {
     setSaving(true);
     const patch: UpdateClientPatch = {
       name: form.name,
+      displayName: form.displayName.trim() || null,
       slug: form.slug,
       vertical: form.vertical,
       status: form.status,
@@ -112,6 +116,7 @@ export function ClientsPage() {
     try {
       const updated = await adminApi.updateClient(editing.id, patch);
       setClients((current) => current.map((client) => client.id === updated.id ? updated : client));
+      await useTenantStore.getState().load();
       setEditing(null);
       setForm(null);
       toast.success('Client updated');
@@ -142,7 +147,12 @@ export function ClientsPage() {
               <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Loading…</td></tr>
             ) : clients.map((client) => (
               <tr key={client.id}>
-                <td className="px-4 py-3"><div className="font-medium text-slate-100">{client.name}</div><div className="text-xs text-slate-500">{client.slug}</div></td>
+                <td className="px-4 py-3">
+                  <div className="font-medium text-slate-100">{client.displayName || client.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {client.displayName ? `${client.name} · ` : ''}{client.slug}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-slate-300">{client.vertical || '—'}</td>
                 <td className="px-4 py-3"><div className="flex gap-1.5"><Badge variant={client.connectWiseCompanyId ? 'success' : 'secondary'}>CW {client.connectWiseCompanyId ?? 'demo'}</Badge><Badge variant={client.ninjaOneOrganizationId ? 'success' : 'secondary'}>Ninja {client.ninjaOneOrganizationId ?? 'demo'}</Badge></div></td>
                 <td className="px-4 py-3"><Badge variant={client.status === 'active' ? 'success' : 'secondary'}>{client.status}</Badge></td>
@@ -159,8 +169,13 @@ export function ClientsPage() {
           {form && (
             <div className="grid gap-4 py-2">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label htmlFor="client-name">Name</Label><Input id="client-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+                <div className="space-y-1.5"><Label htmlFor="client-name">Source name</Label><Input id="client-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
                 <div className="space-y-1.5"><Label htmlFor="client-slug">Slug</Label><Input id="client-slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} /></div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="client-display-name">Display name</Label>
+                <Input id="client-display-name" placeholder="Uses source name when blank" value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} />
+                <p className="text-xs text-slate-500">Shown throughout the portal and used in AI-generated content. Live-data mappings continue to use the client IDs below.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><Label htmlFor="client-vertical">Vertical</Label><Input id="client-vertical" value={form.vertical} onChange={(event) => setForm({ ...form, vertical: event.target.value })} /></div>
