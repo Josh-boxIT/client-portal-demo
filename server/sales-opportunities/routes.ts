@@ -51,11 +51,16 @@ export function registerSalesOpportunityRoutes(
 ): void {
   const staffOnly = { preHandler: requireRole('admin', 'editor') };
 
-  async function inputFor(req: FastifyRequest) {
+  async function accessibleTenantFor(req: FastifyRequest) {
     const tenantId = tenantHeader(req);
     const scope = await resolvePortalAccess(app.db, app.configStore, req.adminIdentity!, tenantId);
     if (!scope || !scope.isStaff) throw new NotFoundError('Client not found');
     const tenant = app.configStore.tenantById(tenantId)!;
+    return { tenantId, scope, tenant };
+  }
+
+  async function inputFor(req: FastifyRequest) {
+    const { tenantId, scope, tenant } = await accessibleTenantFor(req);
     const [ticketResult, agreementResult, rows] = await Promise.all([
       tenant.connectWiseCompanyId !== null
         ? vendorData.tickets(tenant)
@@ -100,6 +105,19 @@ export function registerSalesOpportunityRoutes(
     return salesOpportunityRepo(app.db).latest(input.tenantId);
   });
 
+  app.delete('/api/sales-opportunities/latest', staffOnly, async (req, reply) => {
+    const { tenantId } = await accessibleTenantFor(req);
+    if (await salesOpportunityRepo(app.db).clear(tenantId)) {
+      await auditRepo(app.db).write({
+        actor: req.adminIdentity!.email,
+        action: 'sales-opportunity.clear',
+        target: tenantId,
+        metadata: { tenantId },
+      });
+    }
+    return reply.status(204).send();
+  });
+
   app.post('/api/sales-opportunities/analyze', staffOnly, async (req) => {
     const input = await inputFor(req);
     if (!provider) throw new ApiError(503, 'opportunity_agent_disabled', 'Sales opportunity analysis requires an OpenAI API key');
@@ -130,7 +148,7 @@ export function registerSalesOpportunityRoutes(
       findings.push({
         fingerprint: fingerprint(input.tenantId, suggestion, product), tenantId: input.tenantId,
         ...(product ? { catalogProductId: product.id } : {}),
-        title: suggestion.title.trim(), category: suggestion.category.trim() || product?.category || 'Other',
+        title: suggestion.title.trim(), category: (product?.category ?? suggestion.category.trim()) || 'Other',
         kind: suggestion.kind, priority: suggestion.priority,
         confidence: Math.min(100, Math.max(0, Math.round(suggestion.confidence))),
         ...valueRange(product, input.agreements),

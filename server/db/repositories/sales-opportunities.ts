@@ -95,6 +95,10 @@ export function salesOpportunityRepo(db: AppDb) {
       }).run();
       return (await this.latest(analysis.tenantId))!;
     },
+    async clear(tenantId: string): Promise<boolean> {
+      return db.delete(salesOpportunityAnalyses)
+        .where(eq(salesOpportunityAnalyses.tenantId, tenantId)).run().changes > 0;
+    },
     async send(
       tenantId: string,
       finding: SalesOpportunityFinding,

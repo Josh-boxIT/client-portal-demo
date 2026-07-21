@@ -259,6 +259,36 @@ describe('vendor API request construction', () => {
     expect(agreement?.lineItems.map((item) => item.id)).toEqual(['cw-addition-1']);
   });
 
+  it('adds base and addition charges and normalizes agreement billing cycles to monthly values', () => {
+    const now = new Date('2026-07-21T12:00:00Z');
+    const cases = [
+      { cycle: 'Monthly', base: 100, addition: 60, expectedBaseAndAddition: 160, expectedAddition: 60 },
+      { cycle: 'Quarterly', base: 300, addition: 150, expectedBaseAndAddition: 150, expectedAddition: 50 },
+      { cycle: 'Annual', base: 1200, addition: 720, expectedBaseAndAddition: 160, expectedAddition: 60 },
+    ];
+
+    for (const testCase of cases) {
+      const agreement = normalizeConnectWiseAgreement({
+        id: 300,
+        agreementStatus: 'Active',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        billAmount: testCase.base,
+        billingCycle: { name: testCase.cycle },
+      }, [{
+        id: 1,
+        description: 'Active addition',
+        effectiveDate: '2026-01-01',
+        quantity: 2,
+        unitPrice: testCase.addition / 2,
+        extPrice: testCase.addition,
+      }], 'brightwater', now);
+
+      expect(agreement?.monthlyAmount).toBe(testCase.expectedBaseAndAddition);
+      expect(agreement?.lineItems[0].monthlyAmount).toBe(testCase.expectedAddition);
+    }
+  });
+
   it('uses documented ConnectWise slash-reference conditions and GET-only reads', async () => {
     const requests: URL[] = [];
     const client = new ConnectWiseClient(env.connectWise!, mockVendorFetch(requests));
@@ -417,8 +447,8 @@ describe('mapped vendor-backed portal routes', () => {
     const context = await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers() });
     expect(context.json()).toMatchObject({
       agreements: [
-        { id: 'cw-agreement-300', lineItems: [{ id: 'cw-addition-301' }] },
-        { id: 'cw-agreement-302', lineItems: [{ id: 'cw-addition-305' }] },
+        { id: 'cw-agreement-300', monthlyAmount: 5125, lineItems: [{ id: 'cw-addition-301', monthlyAmount: 125 }] },
+        { id: 'cw-agreement-302', monthlyAmount: 200, lineItems: [{ id: 'cw-addition-305', monthlyAmount: 200 }] },
       ],
       ticketCount: 1,
     });

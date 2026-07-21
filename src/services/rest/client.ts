@@ -57,6 +57,7 @@ async function request<T>(tenantId: string, path: string, init?: RequestInit): P
     }
     throw new RestError(res.status, message, code);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -89,6 +90,9 @@ export const rest = {
   },
   createPath<T>(tenantId: string, path: string, body: unknown): Promise<T> {
     return request<T>(tenantId, `/${path}`, { method: 'POST', body: JSON.stringify(body) });
+  },
+  deletePath(tenantId: string, path: string): Promise<void> {
+    return request<void>(tenantId, `/${path}`, { method: 'DELETE' });
   },
   /** Raw GET of an arbitrary sub-path returning `T` directly (not a `Page<T>` envelope). */
   getPath<T>(tenantId: string, path: string): Promise<T> {

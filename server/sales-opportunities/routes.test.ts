@@ -4,14 +4,14 @@ import type { OpportunityModelInput, OpportunityModelSuggestion, SalesOpportunit
 import { buildApp } from '../app';
 import { openTestDb } from '../db/test-db';
 import type { AppDb, DbClient } from '../db/client';
-import { adminUsers, auditLog } from '../db/schema';
+import { adminUsers, auditLog, salesOpportunityHandoffs } from '../db/schema';
 
 class FakeOpportunityProvider implements SalesOpportunityModelProvider {
   readonly modelName = 'fake-opportunity-model';
   calls: OpportunityModelInput[] = [];
   suggestions: OpportunityModelSuggestion[] = [
     {
-      title: 'Deploy managed antivirus across Brightwater endpoints', category: 'Security', kind: 'gap',
+      title: 'Deploy managed antivirus across Brightwater endpoints', category: 'Model-supplied category', kind: 'gap',
       priority: 'high', confidence: 91, catalogProductId: 'product-managed-antivirus',
       rationale: 'A malware ticket and the missing agreement line show a managed antivirus gap.',
       suggestedApproach: 'Lead with consistent warehouse and office endpoint coverage.',
@@ -99,6 +99,7 @@ describe('sales opportunity API', () => {
     expect(findings).toHaveLength(2);
     expect(findings[0]).toMatchObject({
       catalogProductId: 'product-managed-antivirus', monthlyValueLow: 66, monthlyValueHigh: 154,
+      category: 'Security',
       evidence: [{ sourceType: 'ticket' }, { sourceType: 'agreement' }],
     });
     expect(findings[1]).toMatchObject({ monthlyValueLow: null, monthlyValueHigh: null });
@@ -119,6 +120,44 @@ describe('sales opportunity API', () => {
     const latest = await app.inject({ method: 'GET', url: '/api/sales-opportunities/latest', headers: headers(admin) });
     expect(latest.json().findings[0].sentAt).toBe(first.json().sentAt);
     expect(db.select().from(auditLog).all().filter((entry) => entry.action === 'sales-opportunity.send')).toHaveLength(2);
+  });
+
+  it('clears only the selected client analysis while preserving handoff history', async () => {
+    const admin = await token('alex.morgan@boxit.demo');
+    const editor = await token('editor@boxit.demo');
+    const viewer = await token('sarah.okonkwo@brightwaterlogistics.com');
+
+    const brightwater = await app.inject({
+      method: 'POST', url: '/api/sales-opportunities/analyze', headers: headers(admin), payload: {},
+    });
+    const fingerprint = brightwater.json().findings[0].fingerprint;
+    await app.inject({
+      method: 'POST', url: `/api/sales-opportunities/${fingerprint}/send-to-connectwise`, headers: headers(admin), payload: {},
+    });
+    await app.inject({
+      method: 'POST', url: '/api/sales-opportunities/analyze', headers: headers(admin, 'cedarvine'), payload: {},
+    });
+
+    expect((await app.inject({
+      method: 'DELETE', url: '/api/sales-opportunities/latest', headers: headers(viewer),
+    })).statusCode).toBe(403);
+    expect((await app.inject({
+      method: 'DELETE', url: '/api/sales-opportunities/latest', headers: headers(editor),
+    })).statusCode).toBe(204);
+
+    const cleared = await app.inject({ method: 'GET', url: '/api/sales-opportunities/latest', headers: headers(admin) });
+    const otherClient = await app.inject({
+      method: 'GET', url: '/api/sales-opportunities/latest', headers: headers(admin, 'cedarvine'),
+    });
+    expect(cleared.json()).toBeNull();
+    expect(otherClient.json()).toMatchObject({ tenantId: 'cedarvine' });
+    expect(db.select().from(salesOpportunityHandoffs).all()).toHaveLength(1);
+    expect(db.select().from(auditLog).all()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        actor: 'editor@boxit.demo', action: 'sales-opportunity.clear', target: 'brightwater',
+        metadata: { tenantId: 'brightwater' },
+      }),
+    ]));
   });
 
   it('reports a disabled agent while retaining authenticated route behavior', async () => {

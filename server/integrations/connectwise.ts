@@ -471,6 +471,19 @@ function agreementStatus(row: JsonObject, now: Date): ConnectWiseAgreement['stat
   return 'active';
 }
 
+function agreementBillingCycle(row: JsonObject): ConnectWiseAgreement['billingCycle'] {
+  const value = referenceName(row.billingCycle);
+  if (/annual|year/i.test(value)) return 'annual';
+  if (/quarter/i.test(value)) return 'quarterly';
+  return 'monthly';
+}
+
+function monthlyEquivalent(amount: number, billingCycle: ConnectWiseAgreement['billingCycle']): number {
+  if (billingCycle === 'annual') return amount / 12;
+  if (billingCycle === 'quarterly') return amount / 3;
+  return amount;
+}
+
 export function normalizeConnectWiseAgreement(
   row: JsonObject,
   additions: JsonObject[],
@@ -479,21 +492,24 @@ export function normalizeConnectWiseAgreement(
 ): ConnectWiseAgreement | null {
   const id = number(row.id);
   if (id === undefined) return null;
+  const billingCycle = agreementBillingCycle(row);
   const lineItems = additions
     .filter((addition) => isConnectWiseAgreementAdditionActive(addition, now))
     .map((addition, index) => {
       const quantity = number(addition.quantity) ?? number(addition.billedQuantity) ?? 0;
       const unitPrice = number(addition.unitPrice) ?? 0;
+      const cycleAmount = number(addition.extPrice) ?? quantity * unitPrice;
       return {
         id: `cw-addition-${number(addition.id) ?? index}`,
         name: referenceName(addition.product) || text(addition.description) || 'Agreement addition',
         description: text(addition.invoiceDescription) || text(addition.description),
         quantity,
         unitPrice,
-        monthlyAmount: number(addition.extPrice) ?? quantity * unitPrice,
+        monthlyAmount: monthlyEquivalent(cycleAmount, billingCycle),
       };
     });
-  const monthlyAmount = number(row.billAmount) ?? lineItems.reduce((sum, item) => sum + item.monthlyAmount, 0);
+  const monthlyAmount = monthlyEquivalent(number(row.billAmount) ?? 0, billingCycle)
+    + lineItems.reduce((sum, item) => sum + item.monthlyAmount, 0);
   const contact = object(row.contact);
   return {
     id: `cw-agreement-${id}`,
@@ -506,8 +522,7 @@ export function normalizeConnectWiseAgreement(
     endDate: text(row.endDate),
     autoRenew: bool(row.noEndingDateFlag),
     renewalNoticeDays: number(row.expiredDays) ?? 0,
-    billingCycle: /annual|year/i.test(referenceName(row.billingCycle)) ? 'annual'
-      : /quarter/i.test(referenceName(row.billingCycle)) ? 'quarterly' : 'monthly',
+    billingCycle,
     monthlyAmount,
     currency: 'USD',
     coveredUsers: 0,
