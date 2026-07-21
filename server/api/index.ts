@@ -15,6 +15,7 @@ import { ApiError, BadRequestError, NotFoundError } from '../framework/errors';
 import { paginateArray, type ListQuery } from '../framework/paginate';
 import { isBoxItStaff } from '../auth/is-staff';
 import { registerTenantRoutes } from './tenants';
+import type { VendorDataService } from '../integrations/vendor-data';
 
 function tenantFrom(req: FastifyRequest): string {
   const value = req.headers['x-tenant-id'];
@@ -111,7 +112,7 @@ function newTicket(tenantId: string, input: CreateTicketInput): Ticket {
   };
 }
 
-export function registerApiRoutes(app: FastifyInstance): void {
+export function registerApiRoutes(app: FastifyInstance, vendorData: VendorDataService): void {
   app.get('/api/health', async () => ({ status: 'ok', dataSource: 'sample', database: 'sqlite' }));
   registerTenantRoutes(app);
 
@@ -125,9 +126,80 @@ export function registerApiRoutes(app: FastifyInstance): void {
     return action;
   });
 
+  app.get('/api/people', async (req) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.people(req.server.configStore.tenantById(tenantId)!);
+    return {
+      ...paginateArray(result.data as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {})),
+      source: result.source,
+      fallback: result.fallback,
+    };
+  });
+  app.get('/api/people/:id', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.people(req.server.configStore.tenantById(tenantId)!);
+    const person = result.data.find((candidate) => candidate.id === (req.params as { id: string }).id);
+    if (!person) return reply.status(404).send({ error: { code: 'not_found', message: 'Person not found' } });
+    return person;
+  });
+  app.get('/api/people/:id/m365-licenses', async () => []);
+
+  app.get('/api/devices', async (req) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.devices(req.server.configStore.tenantById(tenantId)!);
+    const personId = typeof (req.query as Record<string, unknown>)?.personId === 'string'
+      ? String((req.query as Record<string, unknown>).personId)
+      : undefined;
+    const rows = personId ? result.data.filter((device) => device.owner === personId) : result.data;
+    return {
+      ...paginateArray(rows as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {})),
+      source: result.source,
+      fallback: result.fallback,
+    };
+  });
+  app.get('/api/devices/:id', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.device(
+      req.server.configStore.tenantById(tenantId)!,
+      (req.params as { id: string }).id,
+    );
+    if (!result.data) return reply.status(404).send({ error: { code: 'not_found', message: 'Device not found' } });
+    return result.data;
+  });
+  app.get('/api/devices/:id/detail', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.deviceDetail(
+      req.server.configStore.tenantById(tenantId)!,
+      (req.params as { id: string }).id,
+    );
+    if (!result.data) return reply.status(404).send({ error: { code: 'not_found', message: 'Device not found' } });
+    return result.data;
+  });
+  app.get('/api/devices/:id/telemetry', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.liveTelemetry(
+      req.server.configStore.tenantById(tenantId)!,
+      (req.params as { id: string }).id,
+    );
+    if (!result.data) return reply.status(404).send({ error: { code: 'not_found', message: 'Device not found' } });
+    return result.data;
+  });
+
   app.get('/api/tickets', async (req) => {
     const tenantId = tenantFrom(req);
+    const tenant = req.server.configStore.tenantById(tenantId)!;
     const requesterScope = ticketRequesterScope(req, tenantId);
+    if (tenant.connectWiseCompanyId !== null) {
+      const result = await vendorData.tickets(tenant);
+      const tickets = result.data
+        .filter((ticket) => canAccessTicket(ticket, requesterScope))
+        .map((ticket) => publicTicket(ticket, isBoxItStaff(req.adminIdentity)));
+      return {
+        ...paginateArray(tickets as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {})),
+        source: result.source,
+        fallback: result.fallback,
+      };
+    }
     const [created, mutations] = await Promise.all([
       demoTicketRepo(app.db).list(tenantId),
       demoTicketMutationRepo(app.db).list(tenantId),
@@ -141,6 +213,15 @@ export function registerApiRoutes(app: FastifyInstance): void {
   app.get('/api/tickets/:id', async (req, reply) => {
     const tenantId = tenantFrom(req);
     const id = (req.params as { id: string }).id;
+    const tenant = req.server.configStore.tenantById(tenantId)!;
+    if (tenant.connectWiseCompanyId !== null) {
+      const result = await vendorData.tickets(tenant, id, true);
+      const liveTicket = result.data[0];
+      if (!liveTicket || !canAccessTicket(liveTicket, ticketRequesterScope(req, tenantId))) {
+        return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
+      }
+      return publicTicket(liveTicket, isBoxItStaff(req.adminIdentity));
+    }
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
     if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) {
       return reply.status(404).send({ error: { code: 'not_found', message: 'Ticket not found' } });
@@ -148,8 +229,24 @@ export function registerApiRoutes(app: FastifyInstance): void {
     const mutation = await demoTicketMutationRepo(app.db).get(tenantId, id);
     return publicTicket(applyTicketMutation(ticket, mutation), isBoxItStaff(req.adminIdentity));
   });
+  app.get('/api/tickets/:id/images/:documentId', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const { id, documentId: rawDocumentId } = req.params as { id: string; documentId: string };
+    const documentId = Number(rawDocumentId);
+    const document = await vendorData.ticketDocument(
+      req.server.configStore.tenantById(tenantId)!,
+      id,
+      documentId,
+    );
+    if (!document) throw new NotFoundError('Ticket attachment not found');
+    return reply.type(document.contentType).send(Buffer.from(document.bytes));
+  });
   app.post('/api/tickets', async (req, reply) => {
     const tenantId = tenantFrom(req);
+    const tenant = req.server.configStore.tenantById(tenantId)!;
+    if (tenant.connectWiseCompanyId !== null || tenant.ninjaOneOrganizationId !== null) {
+      throw new ApiError(409, 'read_only_integration', 'Ticket creation is disabled for vendor-mapped clients');
+    }
     const input = req.body as CreateTicketInput;
     if (!input?.subject?.trim() || !input.body?.trim() || !input.requesterId || !input.category || !input.priority) {
       throw new BadRequestError('subject, body, requesterId, category, and priority are required');
@@ -163,6 +260,10 @@ export function registerApiRoutes(app: FastifyInstance): void {
   });
   app.patch('/api/tickets/:id/status', async (req) => {
     const tenantId = tenantFrom(req);
+    const tenant = req.server.configStore.tenantById(tenantId)!;
+    if (tenant.connectWiseCompanyId !== null || tenant.ninjaOneOrganizationId !== null) {
+      throw new ApiError(409, 'read_only_integration', 'Ticket status changes are disabled for vendor-mapped clients');
+    }
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
     if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');
@@ -176,6 +277,10 @@ export function registerApiRoutes(app: FastifyInstance): void {
   });
   app.post('/api/tickets/:id/replies', async (req, reply) => {
     const tenantId = tenantFrom(req);
+    const tenant = req.server.configStore.tenantById(tenantId)!;
+    if (tenant.connectWiseCompanyId !== null || tenant.ninjaOneOrganizationId !== null) {
+      throw new ApiError(409, 'read_only_integration', 'Ticket replies are disabled for vendor-mapped clients');
+    }
     const id = (req.params as { id: string }).id;
     const ticket = await demoTicketRepo(app.db).get(tenantId, id) ?? getSeed(tenantId).tickets.find((item) => item.id === id);
     if (!ticket || !canAccessTicket(ticket, ticketRequesterScope(req, tenantId))) throw new NotFoundError('Ticket not found');

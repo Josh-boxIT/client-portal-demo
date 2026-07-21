@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { CheckCircle2, ChevronLeft, ChevronRight, Play, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTenantStore } from '@/theme/tenantStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,10 @@ interface ActionWizardProps {
 export function ActionWizard({ open, onOpenChange, actionDef }: ActionWizardProps) {
   const { tickets, people } = useServices();
   const { activeTenantId, activePersonaId, pushActivity } = useSessionStore();
+  const readOnly = useTenantStore((state) => {
+    const source = state.getTenant(activeTenantId)?.dataSource;
+    return source ? source.connectWise || source.ninjaOne : false;
+  });
 
   const [currentStep, setCurrentStep] = useState(0);
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -504,9 +509,9 @@ export function ActionWizard({ open, onOpenChange, actionDef }: ActionWizardProp
                   Cancel
                 </Button>
                 {isLastStep ? (
-                  <Button onClick={handleRun}>
+                  <Button disabled={readOnly} onClick={handleRun} title={readOnly ? 'ConnectWise-mapped clients are read-only' : undefined}>
                     <Play className="h-4 w-4 mr-1" />
-                    Run
+                    {readOnly ? 'Read-only' : 'Run'}
                   </Button>
                 ) : (
                   <Button onClick={handleNext}>

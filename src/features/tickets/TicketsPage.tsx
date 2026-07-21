@@ -29,6 +29,7 @@ import {
 import { formatRelative } from '@/lib/format';
 import { Ticket as TicketIcon, Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { NewTicketDialog } from './NewTicketDialog';
+import { useTenantStore } from '@/theme/tenantStore';
 
 type SortKey = 'updatedAt' | 'createdAt' | 'priority' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -58,6 +59,10 @@ export function TicketsPage() {
   const navigate = useNavigate();
   const { tickets, people } = useServices();
   const { activeTenantId } = useSessionStore();
+  const readOnly = useTenantStore((state) => {
+    const source = state.getTenant(activeTenantId)?.dataSource;
+    return source ? source.connectWise || source.ninjaOne : false;
+  });
 
   const [data, setData] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,11 +83,21 @@ export function TicketsPage() {
     setLoading(true);
     setError(null);
     tickets
-      .list(activeTenantId, { pageSize: 200 })
-      .then((r) => setData(r.data))
+      .list(activeTenantId, {
+        pageSize: 200,
+        sortBy: 'updatedAt',
+        sortDir: 'desc',
+        filters: showClosed ? undefined : { isClosed: 'false' },
+      })
+      .then((r) => {
+        setData(r.data);
+        if (readOnly && r.fallback && r.data.length === 0) {
+          setError('ConnectWise could not be reached, and this imported client has no demo tickets to show.');
+        }
+      })
       .catch(() => setError('We couldn’t load tickets. Please try again.'))
       .finally(() => setLoading(false));
-  }, [activeTenantId, tickets, reloadKey]);
+  }, [activeTenantId, tickets, reloadKey, readOnly, showClosed]);
 
   // Resolve requester names
   useEffect(() => {
@@ -180,9 +195,9 @@ export function TicketsPage() {
         title="Tickets"
         subtitle="Support requests and IT issues"
         actions={
-          <Button size="sm" onClick={() => setNewTicketOpen(true)} aria-label="Create new ticket">
+          <Button size="sm" disabled={readOnly} onClick={() => setNewTicketOpen(true)} aria-label={readOnly ? 'ConnectWise tickets are read-only' : 'Create new ticket'} title={readOnly ? 'ConnectWise-mapped clients are read-only' : undefined}>
             <Plus className="h-4 w-4 mr-1.5" />
-            New ticket
+            {readOnly ? 'Read-only' : 'New ticket'}
           </Button>
         }
       />
@@ -284,10 +299,12 @@ export function TicketsPage() {
           description={
             search || hasActiveFilters
               ? 'Try adjusting your search or filters.'
-              : 'No tickets yet. Submit one to get started.'
+              : readOnly
+                ? showClosed ? 'No tickets were returned by ConnectWise.' : 'No open tickets were returned by ConnectWise.'
+                : 'No tickets yet. Submit one to get started.'
           }
           action={
-            !search && !hasActiveFilters ? (
+            !readOnly && !search && !hasActiveFilters ? (
               <Button size="sm" onClick={() => setNewTicketOpen(true)}>
                 <Plus className="h-4 w-4 mr-1.5" />
                 New ticket
@@ -381,7 +398,7 @@ export function TicketsPage() {
       )}
 
       <NewTicketDialog
-        open={newTicketOpen}
+        open={!readOnly && newTicketOpen}
         onOpenChange={setNewTicketOpen}
         onCreated={handleTicketCreated}
       />

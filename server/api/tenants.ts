@@ -12,6 +12,10 @@ export interface TenantPublic {
   supportPhone: string | null;
   supportHours: string | null;
   status: string;
+  dataSource: {
+    connectWise: boolean;
+    ninjaOne: boolean;
+  };
 }
 
 export function registerTenantRoutes(app: FastifyInstance): void {
@@ -30,6 +34,10 @@ export function registerTenantRoutes(app: FastifyInstance): void {
         supportPhone: t.supportPhone ?? null,
         supportHours: t.supportHours ?? null,
         status: t.status,
+        dataSource: {
+          connectWise: t.connectWiseCompanyId !== null,
+          ninjaOne: t.ninjaOneOrganizationId !== null,
+        },
       }));
     return { tenants };
   });

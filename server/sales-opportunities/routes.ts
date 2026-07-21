@@ -5,13 +5,14 @@ import type {
   SalesOpportunityEvidence,
   SalesOpportunityFinding,
 } from '@/services/types';
-import { getDemoAgreements } from '@/data';
+import type { ConnectWiseAgreement } from '@/services/types';
 import { getChurnAssessment } from '@/data/seed/customerChurn';
 import { requireRole } from '../admin/require-role';
 import { auditRepo, productCatalogDto, productCatalogRepo, salesOpportunityRepo } from '../db/repositories';
 import { ApiError, BadRequestError, NotFoundError } from '../framework/errors';
 import { resolvePortalAccess, ticketsForScope } from '../assistant/portal-data';
 import type { OpportunityModelSuggestion, SalesOpportunityModelProvider } from './provider';
+import type { VendorDataService } from '../integrations/vendor-data';
 
 function tenantHeader(req: FastifyRequest): string {
   const raw = req.headers['x-tenant-id'];
@@ -29,7 +30,7 @@ function fingerprint(tenantId: string, suggestion: OpportunityModelSuggestion, p
   return createHash('sha256').update(`${tenantId}:${key}`).digest('hex').slice(0, 32);
 }
 
-function valueRange(product: ProductCatalogItem | undefined, agreements: ReturnType<typeof getDemoAgreements>) {
+function valueRange(product: ProductCatalogItem | undefined, agreements: ConnectWiseAgreement[]) {
   if (!product) return { monthlyValueLow: null, monthlyValueHigh: null };
   const agreement = agreements[0];
   const multiplier = product.pricingModel === 'per-user'
@@ -46,6 +47,7 @@ function valueRange(product: ProductCatalogItem | undefined, agreements: ReturnT
 export function registerSalesOpportunityRoutes(
   app: FastifyInstance,
   provider: SalesOpportunityModelProvider | null,
+  vendorData: VendorDataService,
 ): void {
   const staffOnly = { preHandler: requireRole('admin', 'editor') };
 
@@ -54,16 +56,19 @@ export function registerSalesOpportunityRoutes(
     const scope = await resolvePortalAccess(app.db, app.configStore, req.adminIdentity!, tenantId);
     if (!scope || !scope.isStaff) throw new NotFoundError('Client not found');
     const tenant = app.configStore.tenantById(tenantId)!;
-    const [tickets, rows] = await Promise.all([
-      ticketsForScope(app.db, scope),
+    const [ticketResult, agreementResult, rows] = await Promise.all([
+      tenant.connectWiseCompanyId !== null
+        ? vendorData.tickets(tenant)
+        : ticketsForScope(app.db, scope).then((data) => ({ data })),
+      vendorData.agreements(tenant),
       productCatalogRepo(app.db).list(),
     ]);
     return {
       tenantId,
       tenantName: tenant.name,
-      tickets,
+      tickets: ticketResult.data,
       products: rows.map(productCatalogDto).filter((product) => product.enabled),
-      agreements: getDemoAgreements(tenantId),
+      agreements: agreementResult.data,
       churn: getChurnAssessment(tenantId),
       scope,
     };

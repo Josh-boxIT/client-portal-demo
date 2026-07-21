@@ -28,7 +28,7 @@ function fakeMac(seed: number, salt: number): string {
 }
 
 /** Build a deterministic, fully-populated DeviceDetail from a seed device (no Math.random/Date.now). */
-function buildMockDetail(device: Device): DeviceDetail {
+export function buildMockDetail(device: Device): DeviceDetail {
   const seed = hashString(device.id);
   const isMac = /mac/i.test(device.os);
   const isServer = device.type === 'server';

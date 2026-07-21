@@ -44,6 +44,8 @@ export const tenants = sqliteTable('tenants', {
   logo: text('logo', { mode: 'json' }).$type<LogoDescriptor>().notNull(),
   supportPhone: text('support_phone'),
   supportHours: text('support_hours'),
+  connectWiseCompanyId: integer('connectwise_company_id'),
+  ninjaOneOrganizationId: integer('ninjaone_organization_id'),
   status: text('status').notNull().default('active'),
   createdAt: text('created_at').notNull().default(now),
   updatedAt: text('updated_at').notNull().default(now),

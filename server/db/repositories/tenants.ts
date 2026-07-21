@@ -15,6 +15,9 @@ export function tenantRepo(db: AppDb) {
     async getBySlug(slug: string): Promise<Tenant | undefined> {
       return db.select().from(tenants).where(eq(tenants.slug, slug)).get();
     },
+    async getByConnectWiseCompanyId(companyId: number): Promise<Tenant | undefined> {
+      return db.select().from(tenants).where(eq(tenants.connectWiseCompanyId, companyId)).get();
+    },
     async create(row: NewTenant): Promise<Tenant> {
       return db.insert(tenants).values(row).returning().get();
     },

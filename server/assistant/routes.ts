@@ -4,6 +4,7 @@ import type { AssistantCitation, AssistantMessage, AssistantStreamEvent } from '
 import { assistantRepo } from '../db/repositories';
 import { BadRequestError, NotFoundError } from '../framework/errors';
 import type { AssistantModelProvider } from './provider';
+import type { VendorDataService } from '../integrations/vendor-data';
 import { isPortalDomain } from './provider';
 import {
   buildPortalRecords,
@@ -14,6 +15,7 @@ import {
 
 interface RegisterAssistantRoutesOptions {
   provider: AssistantModelProvider | null;
+  vendorData?: VendorDataService;
 }
 
 function tenantHeader(req: FastifyRequest): string {
@@ -149,7 +151,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
 
       const [messages, records] = await Promise.all([
         repo.listMessages(scope.userId, scope.tenantId, conversationId),
-        buildPortalRecords(app.db, app.configStore, scope),
+        buildPortalRecords(app.db, app.configStore, scope, options.vendorData),
       ]);
       if (!messages) throw new NotFoundError('Conversation not found');
       const recordBySource = new Map(records.map((record) => [record.sourceId, record]));

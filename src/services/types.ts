@@ -5,6 +5,10 @@ export interface Page<T> {
   page: number;
   pageSize: number;
   total: number;
+  /** Present on vendor-backed list routes. */
+  source?: 'demo' | 'connectwise';
+  /** True when a configured vendor read failed and demo data was returned. */
+  fallback?: boolean;
 }
 
 export interface ListParams {

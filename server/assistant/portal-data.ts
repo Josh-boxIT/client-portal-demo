@@ -6,6 +6,7 @@ import { getSeed } from '@/data';
 import { backlogIntelligenceSnapshot } from '@/data/seed/backlogIntelligence';
 import { getChurnAssessment } from '@/data/seed/customerChurn';
 import type { Ticket } from '@/services/types';
+import type { VendorDataService } from '../integrations/vendor-data';
 
 export const PORTAL_DOMAINS = [
   'actions',
@@ -135,7 +136,7 @@ export async function ticketsForScope(db: AppDb, scope: PortalAccessScope): Prom
     demoTicketRepo(db).list(scope.tenantId),
     demoTicketMutationRepo(db).list(scope.tenantId),
   ]);
-  let tickets = [...created, ...seed.tickets].map((ticket) => {
+  const tickets = [...created, ...seed.tickets].map((ticket) => {
     const mutation = mutations.get(ticket.id);
     if (!mutation) return ticket;
     const status = mutation.status ?? ticket.status;
@@ -147,21 +148,38 @@ export async function ticketsForScope(db: AppDb, scope: PortalAccessScope): Prom
       messages: [...ticket.messages, ...mutation.replies],
     };
   });
+  return filterTicketsForScope(tickets, scope);
+}
+
+export function filterTicketsForScope(tickets: Ticket[], scope: PortalAccessScope): Ticket[] {
+  const seed = getSeed(scope.tenantId);
+  let permitted = tickets;
   if (!scope.isStaff && scope.clientRole === 'client-user') {
     const person = seed.people.find((candidate) => candidate.email.toLowerCase() ===
       seed.personas.find((persona) => persona.id === scope.personaId)?.email.toLowerCase());
     const requesterId = person?.id ?? scope.personaId;
-    tickets = requesterId ? tickets.filter((ticket) => ticket.requesterId === requesterId) : [];
+    permitted = requesterId ? tickets.filter((ticket) => ticket.requesterId === requesterId) : [];
   }
-  return tickets.map((ticket) => publicTicket(ticket, scope.isStaff));
+  return permitted.map((ticket) => publicTicket(ticket, scope.isStaff));
 }
 
 export async function buildPortalRecords(
   db: AppDb,
   configStore: ConfigStore,
   scope: PortalAccessScope,
+  vendorData?: VendorDataService,
 ): Promise<PortalRecord[]> {
   const seed = getSeed(scope.tenantId);
+  const tenant = configStore.tenantById(scope.tenantId)!;
+  const [people, devices, tickets] = vendorData
+    ? await Promise.all([
+        vendorData.people(tenant).then((result) => result.data),
+        vendorData.devices(tenant).then((result) => result.data),
+        tenant.connectWiseCompanyId !== null
+          ? vendorData.tickets(tenant).then((result) => filterTicketsForScope(result.data, scope))
+          : ticketsForScope(db, scope),
+      ])
+    : [seed.people, seed.devices, await ticketsForScope(db, scope)];
   const records: PortalRecord[] = [];
   const push = (domain: PortalDomain, values: unknown[], title: (value: Record<string, unknown>) => string) => {
     for (const value of values as Record<string, unknown>[]) records.push(asRecord(domain, value, title(value)));
@@ -172,9 +190,9 @@ export async function buildPortalRecords(
     configStore.actionDefsForTenant(scope.tenantId).filter((action) => action.enabled),
     (value) => String(value.title),
   );
-  push('tickets', await ticketsForScope(db, scope), (value) => `${String(value.number)}: ${String(value.subject)}`);
-  push('people', seed.people, (value) => String(value.name));
-  push('devices', seed.devices, (value) => String(value.name ?? value.hostname ?? value.id));
+  push('tickets', tickets, (value) => `${String(value.number)}: ${String(value.subject)}`);
+  push('people', people, (value) => String(value.name));
+  push('devices', devices, (value) => String(value.name ?? value.hostname ?? value.id));
   push('licenses', seed.licenses, (value) => String(value.name));
   push('assets', seed.assets, (value) => String(value.name));
   push('roadmaps', seed.roadmap, (value) => String(value.title));

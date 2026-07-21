@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { isBoxItStaff } from '@/lib/accessibleTenants';
 import { ticketStatusColor } from './ticketStatusColor';
+import { useTenantStore } from '@/theme/tenantStore';
 
 const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -38,7 +39,7 @@ function ConsoleNote({ msg, requesterName }: { msg: TicketMessage; requesterName
   const isRequester = msg.authorType === 'requester';
   const isSystem = msg.authorType === 'system';
   const isTime = msg.kind === 'time';
-  const isInternal = msg.internal && !isTime;
+  const isInternal = Boolean(msg.internal);
   const authorLabel = isRequester && msg.author === 'You' ? requesterName : msg.author;
 
   if (isSystem) {
@@ -61,10 +62,18 @@ function ConsoleNote({ msg, requesterName }: { msg: TicketMessage; requesterName
           </Badge>
           <span className="font-medium text-foreground">{msg.author}</span>
           <span className="font-mono">{formatRelative(msg.at)}</span>
+          {isTime && msg.hours != null && (
+            <span className="inline-flex items-center gap-1 font-mono text-sky-700 dark:text-sky-300">
+              <Clock className="h-3 w-3" aria-hidden />
+              {msg.hours}h
+            </span>
+          )}
         </div>
-        <div className="mt-1">
-          <MarkdownRenderer body={msg.body} />
-        </div>
+        {msg.body.trim() && (
+          <div className="mt-1">
+            <MarkdownRenderer body={msg.body} />
+          </div>
+        )}
       </div>
     );
   }
@@ -148,6 +157,10 @@ export function TicketDetailPage() {
   const { activeTenantId } = useSessionStore();
   const identity = useAuthStore((s) => s.identity);
   const isStaff = isBoxItStaff(identity);
+  const readOnly = useTenantStore((state) => {
+    const source = state.getTenant(activeTenantId)?.dataSource;
+    return source ? source.connectWise || source.ninjaOne : false;
+  });
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [requesterName, setRequesterName] = useState('');
@@ -386,20 +399,20 @@ export function TicketDetailPage() {
           {/* Reply composer (fixed at bottom) */}
           <form onSubmit={handleReply} className="shrink-0 rounded-lg border p-4 space-y-2 lg:mt-4">
             <Label htmlFor="console-reply" className="text-xs font-medium">
-              Add reply
+              {readOnly ? 'ConnectWise ticket (read-only)' : 'Add reply'}
             </Label>
             <Textarea
               id="console-reply"
               value={replyBody}
               onChange={(event) => setReplyBody(event.target.value)}
-              disabled={replying}
+              disabled={replying || readOnly}
               maxLength={10_000}
-              placeholder="Write a reply…"
+              placeholder={readOnly ? 'Replies are disabled for mapped ConnectWise clients.' : 'Write a reply…'}
               rows={3}
               className="resize-none text-sm"
             />
             <div className="flex justify-end">
-              <Button type="submit" size="sm" disabled={replying || !replyBody.trim()}>
+              <Button type="submit" size="sm" disabled={readOnly || replying || !replyBody.trim()}>
                 {replying ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden />
                 ) : (
@@ -438,7 +451,7 @@ export function TicketDetailPage() {
               <Select
                 value={ticket.status}
                 onValueChange={(value) => void handleStatusChange(value as TicketStatus)}
-                disabled={statusUpdating}
+                disabled={statusUpdating || readOnly}
               >
                 <SelectTrigger
                   id="console-status"
@@ -457,6 +470,7 @@ export function TicketDetailPage() {
               </Select>
             </div>
             {statusUpdating && <p className="text-xs text-muted-foreground">Saving status…</p>}
+            {readOnly && <p className="text-xs text-muted-foreground">Status changes are disabled for mapped ConnectWise clients.</p>}
           </div>
         </div>
       </div>
