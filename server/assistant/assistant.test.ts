@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '../db/client';
 import { openTestDb } from '../db/test-db';
 import { buildApp } from '../app';
+import { adminUsersRepo } from '../db/repositories';
 import type {
   AssistantModelInput,
   AssistantModelProvider,
@@ -143,7 +144,7 @@ describe('permission-aware assistant API', () => {
     expect(completed).toBeDefined();
     expect(completed?.message).toMatchObject({
       role: 'assistant',
-      citations: [{ recordType: 'documents', href: '/documents/bw-doc2' }],
+      citations: [{ recordType: 'documents', href: '/documents/bw-doc2', tenantId: 'brightwater' }],
     });
 
     const replay = await app.inject({
@@ -207,6 +208,36 @@ describe('permission-aware assistant API', () => {
     expect(provider.captured['form-submissions']).toEqual([]);
   });
 
+  it('searches every granted client instead of only the selected client', async () => {
+    const provider = new NewDataCaptureProvider();
+    const app = await makeApp(provider);
+    await adminUsersRepo(app.db).setClientAccess('demo-client-admin', ['brightwater', 'northwind']);
+    const token = await login(app, 'sarah.okonkwo@brightwaterlogistics.com');
+    const headers = authHeaders(token, 'brightwater');
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'Compare churn across my clients.', requestId: 'multi-client-churn' },
+    });
+
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0].churn.map((record) => record.tenantId)).toEqual([
+      'brightwater',
+      'northwind',
+    ]);
+    expect(provider.calls[0].churn.map((record) => record.clientName)).toEqual([
+      'Brightwater Logistics',
+      'Northwind Health Partners',
+    ]);
+    const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
+    expect(completed?.message).toMatchObject({
+      citations: [{ tenantId: 'brightwater' }],
+    });
+  });
+
   it('exposes tenant churn data to client users without exposing Queue Attention', async () => {
     const provider = new NewDataCaptureProvider();
     const app = await makeApp(provider);
@@ -223,7 +254,9 @@ describe('permission-aware assistant API', () => {
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0].churn).toHaveLength(1);
     expect(provider.calls[0].churn[0]).toMatchObject({
-      sourceId: 'customer-churn:assessment',
+      sourceId: 'brightwater:customer-churn:assessment',
+      tenantId: 'brightwater',
+      clientName: 'Brightwater Logistics',
       domain: 'customer-churn',
       href: '/customer-churn',
       data: { score: 68 },
@@ -233,7 +266,7 @@ describe('permission-aware assistant API', () => {
 
     const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
     expect(completed?.message).toMatchObject({
-      citations: [{ recordType: 'customer-churn', href: '/customer-churn' }],
+      citations: [{ recordType: 'customer-churn', href: '/customer-churn', tenantId: 'brightwater' }],
     });
   });
 
@@ -254,8 +287,8 @@ describe('permission-aware assistant API', () => {
       const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
       expect(completed?.message).toMatchObject({
         citations: [
-          { recordType: 'customer-churn', href: '/customer-churn' },
-          { recordType: 'queue-attention', href: '/queue-attention' },
+          { recordType: 'customer-churn', href: '/customer-churn', tenantId },
+          { recordType: 'queue-attention', href: '/queue-attention', tenantId },
         ],
       });
     }
@@ -263,8 +296,12 @@ describe('permission-aware assistant API', () => {
     expect(provider.calls).toHaveLength(2);
     expect(provider.calls[0].churn[0].data.score).toBe(68);
     expect(provider.calls[1].churn[0].data.score).toBe(81);
-    expect(provider.calls[0].churn).toHaveLength(1);
-    expect(provider.calls[1].churn).toHaveLength(1);
+    expect(provider.calls[0].churn.map((record) => record.tenantId)).toEqual([
+      'brightwater', 'cedarvine', 'northwind',
+    ]);
+    expect(provider.calls[1].churn.map((record) => record.tenantId)).toEqual([
+      'northwind', 'brightwater', 'cedarvine',
+    ]);
 
     const queueRecords = provider.calls[0].queueAttention;
     expect(queueRecords).toHaveLength(12);
