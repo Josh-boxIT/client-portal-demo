@@ -44,3 +44,7 @@ yarn-error.log*
 # Local browser artifacts
 .playwright-mcp/
 .claude/
+
+# Local API reference documents
+docs/cw-api-endpoint-docs.json
+docs/ninjaOne-API-core-resources.yaml
