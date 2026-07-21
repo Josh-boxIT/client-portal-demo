@@ -32,6 +32,8 @@ export type PortalDomain = typeof PORTAL_DOMAINS[number];
 
 export interface PortalRecord {
   sourceId: string;
+  tenantId: string;
+  clientName: string;
   domain: PortalDomain;
   recordId: string;
   title: string;
@@ -83,10 +85,18 @@ function cleanValue(value: unknown, key?: string): unknown {
   return value;
 }
 
-function asRecord(domain: PortalDomain, raw: Record<string, unknown>, title: string): PortalRecord {
+function asRecord(
+  scope: PortalAccessScope,
+  clientName: string,
+  domain: PortalDomain,
+  raw: Record<string, unknown>,
+  title: string,
+): PortalRecord {
   const recordId = String(raw.id ?? raw.key ?? title);
   return {
-    sourceId: `${domain}:${recordId}`,
+    sourceId: `${scope.tenantId}:${domain}:${recordId}`,
+    tenantId: scope.tenantId,
+    clientName,
     domain,
     recordId,
     title,
@@ -129,6 +139,33 @@ export async function resolvePortalAccess(
   };
 }
 
+/** Resolve every client the signed-in identity may use, independent of the
+ * currently selected portal client. */
+export async function resolvePortalAccessScopes(
+  db: AppDb,
+  configStore: ConfigStore,
+  identity: AdminIdentity,
+): Promise<PortalAccessScope[]> {
+  const isStaff = identity.role === 'admin' || identity.role === 'editor';
+  const tenantIds = isStaff
+    ? configStore.tenants().map((tenant) => tenant.id)
+    : await adminUsersRepo(db).getClientAccess(identity.id);
+
+  return tenantIds.flatMap((tenantId) => {
+    if (!configStore.tenantById(tenantId)) return [];
+    const persona = getSeed(tenantId).personas.find(
+      (candidate) => candidate.email.toLowerCase() === identity.email.toLowerCase(),
+    );
+    return [{
+      userId: identity.id,
+      tenantId,
+      isStaff,
+      clientRole: isStaff ? 'client-admin' : persona?.role ?? 'client-user',
+      personaId: persona?.id,
+    }];
+  });
+}
+
 export async function ticketsForScope(db: AppDb, scope: PortalAccessScope): Promise<Ticket[]> {
   const seed = getSeed(scope.tenantId);
   const [created, mutations] = await Promise.all([
@@ -162,9 +199,12 @@ export async function buildPortalRecords(
   scope: PortalAccessScope,
 ): Promise<PortalRecord[]> {
   const seed = getSeed(scope.tenantId);
+  const clientName = configStore.tenantById(scope.tenantId)?.name ?? scope.tenantId;
   const records: PortalRecord[] = [];
   const push = (domain: PortalDomain, values: unknown[], title: (value: Record<string, unknown>) => string) => {
-    for (const value of values as Record<string, unknown>[]) records.push(asRecord(domain, value, title(value)));
+    for (const value of values as Record<string, unknown>[]) {
+      records.push(asRecord(scope, clientName, domain, value, title(value)));
+    }
   };
 
   push(
@@ -243,7 +283,7 @@ export function searchPortalRecords(
   return records
     .filter((record) => !allowedDomains || allowedDomains.has(record.domain))
     .map((record) => {
-      const haystack = `${record.title} ${JSON.stringify(record.data)}`.toLowerCase();
+      const haystack = `${record.clientName} ${record.tenantId} ${record.title} ${JSON.stringify(record.data)}`.toLowerCase();
       const score = terms.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0);
       return { record, score };
     })

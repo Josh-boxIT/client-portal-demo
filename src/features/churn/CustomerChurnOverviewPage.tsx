@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   Inbox,
+  Gauge,
   ReceiptText,
   Repeat2,
   ShieldCheck,
@@ -184,6 +185,11 @@ export function CustomerChurnOverviewPage() {
                       label="On-time payments"
                       value={`${assessment.onTimePaymentRatio}%`}
                       icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                    />
+                    <CustomerMetric
+                      label="SLA conformance"
+                      value={`${assessment.slaConformancePercent}%`}
+                      icon={<Gauge className="h-3.5 w-3.5" />}
                     />
                     <CustomerMetric
                       label="Open cases"

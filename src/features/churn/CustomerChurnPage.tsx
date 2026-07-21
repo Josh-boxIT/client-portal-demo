@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   Inbox,
+  Gauge,
   ListChecks,
   ReceiptText,
   Repeat2,
@@ -215,6 +216,18 @@ export function CustomerChurnPage() {
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
             progress={assessment.onTimePaymentRatio}
             accentClass={assessment.onTimePaymentRatio >= 90 ? 'text-green-600' : 'text-amber-600'}
+          />
+          <MetricCard
+            label="SLA conformance"
+            value={`${assessment.slaConformancePercent}%`}
+            detail="Qualifying support responses delivered within the client's SLA target; higher is better"
+            icon={<Gauge className="h-5 w-5" aria-hidden="true" />}
+            progress={assessment.slaConformancePercent}
+            accentClass={assessment.slaConformancePercent >= 95
+              ? 'text-green-600'
+              : assessment.slaConformancePercent >= 85
+                ? 'text-amber-600'
+                : 'text-red-600'}
           />
           <MetricCard
             label="Open cases"

@@ -57,9 +57,15 @@ describe('customer churn data', () => {
       creditLimitUsagePercent: 74,
       daysPastDue: 18,
       onTimePaymentRatio: 82,
+      slaConformancePercent: 84,
       openCases: 5,
       closedCases: 12,
       repeatCases: 3,
     });
+    expect(churnAssessments.cedarvine.slaConformancePercent)
+      .toBeGreaterThan(churnAssessments.brightwater.slaConformancePercent);
+    expect(churnAssessments.brightwater.slaConformancePercent)
+      .toBeGreaterThan(churnAssessments.northwind.slaConformancePercent);
+    expect(churnAssessments.brightwater.assessment).toContain('SLA conformance');
   });
 });
