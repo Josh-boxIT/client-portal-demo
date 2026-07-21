@@ -1,6 +1,6 @@
 import { getDemoAgreements, getSeed } from '@/data';
 import { buildMockDetail } from '@/services/mock/devices';
-import type { ConnectWiseAgreement, Device, DeviceDetail, Person, Ticket } from '@/services/types';
+import type { Asset, ConnectWiseAgreement, Device, DeviceDetail, Person, Ticket } from '@/services/types';
 import type { ServerEnv } from '../config/env';
 import type { AppDb } from '../db/client';
 import { connectWiseCacheRepo } from '../db/repositories';
@@ -30,10 +30,11 @@ import {
   enrichWithNinja,
   matchNinjaDevice,
   NinjaOneClient,
+  normalizeNinjaAsset,
   normalizeNinjaDetail,
 } from './ninjaone';
 
-export type VendorDataSource = 'demo' | 'connectwise';
+export type VendorDataSource = 'demo' | 'connectwise' | 'ninjaone';
 
 export interface VendorResult<T> {
   data: T;
@@ -291,6 +292,40 @@ export class VendorDataService {
       }
     }
     return { data: base, source, fallback };
+  }
+
+  async assets(tenant: Tenant): Promise<VendorResult<Asset[]>> {
+    const seed = getSeed(tenant.id).assets.map((asset) => ({ ...asset }));
+    if (tenant.ninjaOneOrganizationId === null) return demo(seed);
+    if (!this.ninjaOne) return demo(seed, true);
+    try {
+      const [devices, customFieldRows] = await Promise.all([
+        this.ninjaOne.listDevices(tenant.ninjaOneOrganizationId),
+        this.ninjaOne.listDeviceCustomFields(tenant.ninjaOneOrganizationId),
+      ]);
+      const customFieldsByDeviceId = new Map<number, Record<string, unknown>>();
+      for (const row of customFieldRows) {
+        if (typeof row.deviceId === 'number' && Number.isInteger(row.deviceId)) {
+          customFieldsByDeviceId.set(row.deviceId, row);
+        }
+      }
+      const ninjaAssets = devices
+        .map((row) => normalizeNinjaAsset(
+          tenant.id,
+          row,
+          typeof row.id === 'number' ? customFieldsByDeviceId.get(row.id) : undefined,
+        ))
+        .filter((asset): asset is Asset => asset !== null);
+      const softwareAssets = seed.filter((asset) => asset.category === 'software');
+      return { data: [...ninjaAssets, ...softwareAssets], source: 'ninjaone', fallback: false };
+    } catch {
+      return demo(seed, true);
+    }
+  }
+
+  async asset(tenant: Tenant, portalId: string): Promise<VendorResult<Asset | null>> {
+    const result = await this.assets(tenant);
+    return { ...result, data: result.data.find((asset) => asset.id === portalId) ?? null };
   }
 
   private async loadDevices(tenant: Tenant): Promise<Device[]> {

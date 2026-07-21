@@ -6,7 +6,7 @@ export interface Page<T> {
   pageSize: number;
   total: number;
   /** Present on vendor-backed list routes. */
-  source?: 'demo' | 'connectwise';
+  source?: 'demo' | 'connectwise' | 'ninjaone';
   /** True when a configured vendor read failed and demo data was returned. */
   fallback?: boolean;
 }
@@ -410,10 +410,11 @@ export interface Asset {
   category: AssetCategory;
   type: string;
   status: AssetStatus;
-  purchaseDate: string; // ISO date
-  warrantyEnd: string; // ISO date
-  refreshDue: string; // ISO date
-  cost: number;
+  purchaseDate?: string; // ISO date
+  warrantyStart?: string; // ISO date
+  warrantyEnd?: string; // ISO date
+  refreshDue?: string; // ISO date
+  cost?: number;
   model: string;
   assignedTo?: string; // personId
 }

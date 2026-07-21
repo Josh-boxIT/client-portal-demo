@@ -185,6 +185,25 @@ export function registerApiRoutes(app: FastifyInstance, vendorData: VendorDataSe
     return result.data;
   });
 
+  app.get('/api/assets', async (req) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.assets(req.server.configStore.tenantById(tenantId)!);
+    return {
+      ...paginateArray(result.data as unknown as Record<string, unknown>[], listQuery((req.query as Record<string, unknown>) ?? {})),
+      source: result.source,
+      fallback: result.fallback,
+    };
+  });
+  app.get('/api/assets/:id', async (req, reply) => {
+    const tenantId = tenantFrom(req);
+    const result = await vendorData.asset(
+      req.server.configStore.tenantById(tenantId)!,
+      (req.params as { id: string }).id,
+    );
+    if (!result.data) return reply.status(404).send({ error: { code: 'not_found', message: 'Asset not found' } });
+    return result.data;
+  });
+
   app.get('/api/tickets', async (req) => {
     const tenantId = tenantFrom(req);
     const tenant = req.server.configStore.tenantById(tenantId)!;

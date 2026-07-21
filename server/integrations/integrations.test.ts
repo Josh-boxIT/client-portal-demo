@@ -255,7 +255,15 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
     if (url.pathname === '/v2/queries/network-interfaces') return json({ results: [{ deviceId: 500, adapterName: 'Ethernet', interfaceName: 'Ethernet 1', interfaceType: 'Ethernet', status: 'UP', ipAddress: ['10.0.0.5'], macAddress: ['AA:BB:CC:DD:EE:FF'], defaultGateway: '10.0.0.1', dnsServers: '10.0.0.2, 10.0.0.3' }] });
     if (url.pathname === '/v2/queries/operating-systems') return json({ results: [{ deviceId: 500, name: 'Windows 11 Pro', architecture: 'x64' }] });
     if (url.pathname === '/v2/queries/logged-on-users') return json({ results: [{ deviceId: 500, userName: 'BRIGHTWATER\\sarah' }] });
-    if (url.pathname === '/v2/queries/custom-fields') return json({ results: [{ deviceId: 500, fields: { boxitAvInstalled: { value: 'Yes' }, azureAdJoined: { value: 'Yes' } } }] });
+    if (url.pathname === '/v2/queries/custom-fields') return json({ results: [{
+      deviceId: 500,
+      fields: {
+        boxitAvInstalled: { value: 'Yes' },
+        azureAdJoined: { value: 'Yes' },
+        warrantyStartDate: Date.parse('2024-07-21T12:00:00Z'),
+        warrantyEndDate: Date.parse('2027-07-21T12:00:00Z'),
+      },
+    }] });
     return json({ error: 'unexpected mock request', path: url.pathname }, 500);
   }) as typeof fetch;
 }
@@ -433,6 +441,38 @@ describe('mapped vendor-backed portal routes', () => {
       networkAdapters: [{ name: 'Ethernet', ipAddresses: ['10.0.0.5'], macAddresses: ['AA:BB:CC:DD:EE:FF'] }],
       boxit: { avInstalled: 'Yes', azureAdJoined: 'Yes' },
     });
+
+    const assets = await app.inject({ method: 'GET', url: '/api/assets?pageSize=100', headers: headers() });
+    expect(assets.json()).toMatchObject({
+      source: 'ninjaone',
+      fallback: false,
+    });
+    expect(assets.json().data[0]).toMatchObject({
+      id: 'ninja-device-500',
+      tenantId: 'brightwater',
+      name: 'BW-LAPTOP-01',
+      category: 'hardware',
+      type: 'Workstation',
+      status: 'in-service',
+      model: 'Latitude 7440',
+      warrantyStart: '2024-07-21T12:00:00.000Z',
+      warrantyEnd: '2027-07-21T12:00:00.000Z',
+    });
+    expect(assets.json().data.filter((asset: { category: string }) => asset.category === 'software')).not.toHaveLength(0);
+    expect(assets.json().data.some((asset: { id: string }) => asset.id === 'bw-a1')).toBe(false);
+    const pagedAssets = await app.inject({ method: 'GET', url: '/api/assets?page=2&pageSize=1', headers: headers() });
+    expect(pagedAssets.json()).toMatchObject({ page: 2, pageSize: 1, total: 3, source: 'ninjaone', fallback: false });
+    const asset = await app.inject({ method: 'GET', url: '/api/assets/ninja-device-500', headers: headers() });
+    expect(asset.statusCode).toBe(200);
+    expect(asset.json().warrantyEnd).toBe('2027-07-21T12:00:00.000Z');
+    const missingAsset = await app.inject({ method: 'GET', url: '/api/assets/ninja-device-999', headers: headers() });
+    expect(missingAsset.statusCode).toBe(404);
+    const crossTenantAsset = await app.inject({
+      method: 'GET',
+      url: '/api/assets/ninja-device-500',
+      headers: { authorization: `Bearer ${token}`, 'x-tenant-id': 'northwind' },
+    });
+    expect(crossTenantAsset.statusCode).toBe(404);
 
     const tickets = await app.inject({ method: 'GET', url: '/api/tickets?pageSize=100', headers: headers() });
     expect(tickets.json()).toMatchObject({ source: 'connectwise', fallback: false, data: [{ id: 'cw-ticket-1200', requesterId: 'bw-p1' }] });
@@ -624,8 +664,62 @@ describe('mapped fallback behavior', () => {
     expect(result.json().source).toBe('demo');
     expect(result.json().fallback).toBe(true);
     expect(result.json().data[0].id).toMatch(/^bw-/);
+    const assets = await app.inject({ method: 'GET', url: '/api/assets?pageSize=100', headers: { authorization: `Bearer ${token}`, 'x-tenant-id': 'brightwater' } });
+    expect(assets.json()).toMatchObject({ source: 'demo', fallback: true });
+    expect(assets.json().data.some((asset: { id: string }) => asset.id === 'bw-a1')).toBe(true);
     await app.close();
     opened.raw.close();
+  });
+
+  it('uses demo assets without a Ninja mapping or configured Ninja credentials', async () => {
+    const opened = openTestDb();
+    const app = await buildApp({ db: opened.db, env: { ...env, ninjaOne: undefined }, logger: false, vendorFetch: mockVendorFetch([]) });
+    try {
+      const unmapped = await app.inject({ method: 'GET', url: '/api/assets?pageSize=100', headers: { 'x-tenant-id': 'brightwater' } });
+      expect(unmapped.json()).toMatchObject({ source: 'demo', fallback: false });
+      expect(unmapped.json().data.some((asset: { id: string }) => asset.id === 'bw-a1')).toBe(true);
+
+      const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'alex.morgan@boxit.demo' } });
+      await app.inject({
+        method: 'PATCH',
+        url: '/api/admin/clients/brightwater',
+        headers: { authorization: `Bearer ${login.json().token}` },
+        payload: { ninjaOneOrganizationId: 77 },
+      });
+      const mappedWithoutCredentials = await app.inject({ method: 'GET', url: '/api/assets?pageSize=100', headers: { 'x-tenant-id': 'brightwater' } });
+      expect(mappedWithoutCredentials.json()).toMatchObject({ source: 'demo', fallback: true });
+    } finally {
+      await app.close();
+      opened.raw.close();
+    }
+  });
+
+  it('returns only seeded software when a mapped Ninja organization has no devices', async () => {
+    const opened = openTestDb();
+    const emptyNinjaFetch = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === '/ws/oauth/token') return json({ access_token: 'ninja-token', expires_in: 3600 });
+      if (url.pathname === '/v2/devices-detailed') return json([]);
+      if (url.pathname === '/v2/queries/custom-fields') return json({ results: [] });
+      return json({ error: 'unexpected request' }, 500);
+    }) as typeof fetch;
+    const app = await buildApp({ db: opened.db, env, logger: false, vendorFetch: emptyNinjaFetch });
+    try {
+      const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'alex.morgan@boxit.demo' } });
+      await app.inject({
+        method: 'PATCH',
+        url: '/api/admin/clients/brightwater',
+        headers: { authorization: `Bearer ${login.json().token}` },
+        payload: { ninjaOneOrganizationId: 77 },
+      });
+      const assets = await app.inject({ method: 'GET', url: '/api/assets?pageSize=100', headers: { 'x-tenant-id': 'brightwater' } });
+      expect(assets.json()).toMatchObject({ source: 'ninjaone', fallback: false });
+      expect(assets.json().data).not.toHaveLength(0);
+      expect(assets.json().data.every((asset: { category: string }) => asset.category === 'software')).toBe(true);
+    } finally {
+      await app.close();
+      opened.raw.close();
+    }
   });
 });
 

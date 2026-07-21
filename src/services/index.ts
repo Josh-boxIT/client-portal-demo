@@ -2,7 +2,7 @@ import type { Services } from './types';
 import { restPeopleService } from './rest/people';
 import { restDeviceService } from './rest/devices';
 import { mockLicenseService } from './mock/licenses';
-import { mockAssetService } from './mock/assets';
+import { restAssetService } from './rest/assets';
 import { mockRoadmapService } from './mock/roadmap';
 import { mockQBRService } from './mock/qbr';
 import { mockBudgetService } from './mock/budget';
@@ -27,7 +27,7 @@ export function buildServices(): Services {
     people: restPeopleService,
     devices: restDeviceService,
     licenses: mockLicenseService,
-    assets: mockAssetService,
+    assets: restAssetService,
     roadmap: mockRoadmapService,
     qbr: mockQBRService,
     budget: mockBudgetService,

@@ -27,8 +27,19 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { formatDate } from '@/lib/format';
-import { parseISO, differenceInDays, format, isBefore } from 'date-fns';
+import { parseISO, format, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
+import {
+  ASSET_TODAY,
+  hasValidDate,
+  refreshDueClass,
+  shouldShowNoWarrantyByDefault,
+  sortAssets,
+  warrantyClass,
+  warrantyLabel,
+  type AssetSortBy,
+  type AssetSortDir,
+} from './assetHelpers';
 import {
   BarChart,
   Bar,
@@ -41,64 +52,12 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// "today" is fixed to 2026-06-30 per project spec
-const TODAY = parseISO('2026-06-30');
-const WARRANTY_WARN_DAYS = 90; // highlight if warranty ends within 90 days
-const WARRANTY_CRIT_DAYS = 0;  // expired
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function hasValidDate(s: string): boolean {
-  if (!s) return false;
-  const d = parseISO(s);
-  return !Number.isNaN(d.getTime());
-}
-
-function warrantyClass(warrantyEnd: string): string {
-  if (!hasValidDate(warrantyEnd)) return '';
-  const end = parseISO(warrantyEnd);
-  const diff = differenceInDays(end, TODAY);
-  if (diff < WARRANTY_CRIT_DAYS) return 'text-red-600 font-semibold';
-  if (diff < WARRANTY_WARN_DAYS) return 'text-yellow-600 font-medium';
-  return '';
-}
-
-function warrantyLabel(warrantyEnd: string): string {
-  if (!hasValidDate(warrantyEnd)) return '—';
-  const end = parseISO(warrantyEnd);
-  const diff = differenceInDays(end, TODAY);
-  if (diff < 0) return `${formatDate(warrantyEnd)} (expired)`;
-  if (diff < WARRANTY_WARN_DAYS) return `${formatDate(warrantyEnd)} (${diff}d left)`;
-  return formatDate(warrantyEnd);
-}
-
-function refreshDueClass(refreshDue: string): string {
-  if (!hasValidDate(refreshDue)) return '';
-  const due = parseISO(refreshDue);
-  const diff = differenceInDays(due, TODAY);
-  if (diff < 0) return 'text-red-600 font-semibold';
-  if (diff < 180) return 'text-yellow-600 font-medium';
-  return '';
-}
 
 function assetQuarterLabel(refreshDue: string): string {
   const d = parseISO(refreshDue);
   const q = Math.floor(d.getMonth() / 3) + 1;
   return `${format(d, 'yyyy')}-Q${q}`;
-}
-
-type SortDir = 'asc' | 'desc';
-type SortBy = 'name' | 'status' | 'warrantyEnd' | 'refreshDue';
-
-function sortAssets(data: Asset[], by: SortBy, dir: SortDir): Asset[] {
-  return [...data].sort((a, b) => {
-    let cmp = 0;
-    if (by === 'name') cmp = a.name.localeCompare(b.name);
-    else if (by === 'status') cmp = a.status.localeCompare(b.status);
-    else if (by === 'warrantyEnd') cmp = a.warrantyEnd.localeCompare(b.warrantyEnd);
-    else if (by === 'refreshDue') cmp = a.refreshDue.localeCompare(b.refreshDue);
-    return dir === 'asc' ? cmp : -cmp;
-  });
 }
 
 // ─── Sort button ──────────────────────────────────────────────────────────────
@@ -110,10 +69,10 @@ function SortHeader({
   onSort,
 }: {
   label: string;
-  column: SortBy;
-  sortBy: SortBy;
-  sortDir: SortDir;
-  onSort: (col: SortBy) => void;
+  column: AssetSortBy;
+  sortBy: AssetSortBy;
+  sortDir: AssetSortDir;
+  onSort: (col: AssetSortBy) => void;
 }) {
   const active = sortBy === column;
   return (
@@ -149,7 +108,7 @@ function RefreshTimeline({ assets }: { assets: Asset[] }) {
   const buckets = useMemo((): QuarterBucket[] => {
     const map = new Map<string, Asset[]>();
     for (const a of upcoming) {
-      const key = assetQuarterLabel(a.refreshDue);
+      const key = assetQuarterLabel(a.refreshDue!);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     }
@@ -159,7 +118,7 @@ function RefreshTimeline({ assets }: { assets: Asset[] }) {
         quarter,
         count: qAssets.length,
         assets: qAssets,
-        isPast: isBefore(parseISO(qAssets[0].refreshDue), TODAY),
+        isPast: isBefore(parseISO(qAssets[0].refreshDue!), ASSET_TODAY),
       }));
   }, [upcoming]);
 
@@ -242,7 +201,7 @@ function RefreshTimeline({ assets }: { assets: Asset[] }) {
                     <div className="flex items-center gap-2 shrink-0 ml-3">
                       <AssetStatusBadge status={a.status} />
                       <span className={cn('text-xs', refreshDueClass(a.refreshDue))}>
-                        {formatDate(a.refreshDue)}
+                        {formatDate(a.refreshDue!)}
                       </span>
                     </div>
                   </div>
@@ -269,8 +228,8 @@ export function AssetsPage() {
   const [filterStatus, setFilterStatus] = useState<AssetStatus | 'all'>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [showNoWarranty, setShowNoWarranty] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortBy, setSortBy] = useState<AssetSortBy>('name');
+  const [sortDir, setSortDir] = useState<AssetSortDir>('asc');
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -278,7 +237,10 @@ export function AssetsPage() {
     setLoading(true);
     setError(null);
     assets.list(activeTenantId, { pageSize: 200 })
-      .then((r) => setAllData(r.data))
+      .then((r) => {
+        setAllData(r.data);
+        setShowNoWarranty(shouldShowNoWarrantyByDefault(r.data));
+      })
       .catch(() => setError('We couldn’t load assets. Please try again.'))
       .finally(() => setLoading(false));
   }, [activeTenantId, assets, reloadKey]);
@@ -286,7 +248,7 @@ export function AssetsPage() {
   // Retired assets are hidden by default across the page; only surface them
   // when the user explicitly filters to the "retired" status.
   const activeData = useMemo(
-    () => allData.filter((a) => a.status !== 'retired' && hasValidDate(a.warrantyEnd)),
+    () => allData.filter((a) => a.status !== 'retired'),
     [allData]
   );
 
@@ -323,7 +285,7 @@ export function AssetsPage() {
     return sortAssets(result, sortBy, sortDir);
   }, [allData, search, filterCategory, filterStatus, filterType, showNoWarranty, sortBy, sortDir]);
 
-  function handleSort(col: SortBy) {
+  function handleSort(col: AssetSortBy) {
     if (sortBy === col) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -535,7 +497,7 @@ export function AssetsPage() {
                     <TableCell>
                       <span
                         className={cn('text-sm', warrantyClass(a.warrantyEnd))}
-                        title={`Warranty: ${a.warrantyEnd}`}
+                        title={a.warrantyEnd ? `Warranty: ${a.warrantyEnd}` : 'No warranty data'}
                       >
                         {warrantyLabel(a.warrantyEnd)}
                       </span>
@@ -543,10 +505,10 @@ export function AssetsPage() {
                     <TableCell>
                       <span
                         className={cn('text-sm', refreshDueClass(a.refreshDue))}
-                        title={`Refresh due: ${a.refreshDue}`}
+                        title={a.refreshDue ? `Refresh due: ${a.refreshDue}` : 'No refresh date'}
                       >
-                        {formatDate(a.refreshDue)}
-                        {hasValidDate(a.refreshDue) && isBefore(parseISO(a.refreshDue), TODAY) && (
+                        {a.refreshDue ? formatDate(a.refreshDue) : '—'}
+                        {hasValidDate(a.refreshDue) && isBefore(parseISO(a.refreshDue), ASSET_TODAY) && (
                           <AlertTriangle
                             className="inline-block h-3 w-3 ml-1 text-red-500"
                             aria-label="Overdue"

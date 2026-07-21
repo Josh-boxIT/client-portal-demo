@@ -1,4 +1,4 @@
-import type { Device, DeviceDetail } from '@/services/types';
+import type { Asset, Device, DeviceDetail } from '@/services/types';
 import type { ServerEnv } from '../config/env';
 
 type JsonObject = Record<string, unknown>;
@@ -17,9 +17,86 @@ function number(value: unknown): number | undefined {
 }
 
 function epoch(value: unknown): string | undefined {
-  const raw = number(value);
+  const raw = number(value) ?? (typeof value === 'string' && value.trim() !== '' ? Number(value) : undefined);
   if (raw === undefined) return undefined;
-  return new Date(raw < 10_000_000_000 ? raw * 1000 : raw).toISOString();
+  const date = new Date(raw < 10_000_000_000 ? raw * 1000 : raw);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+const NINJA_ASSET_TYPES: Record<string, string> = {
+  WINDOWS_SERVER: 'Server',
+  LINUX_SERVER: 'Server',
+  MAC_SERVER: 'Server',
+  NMS_SERVER: 'Server',
+  WINDOWS_WORKSTATION: 'Workstation',
+  LINUX_WORKSTATION: 'Workstation',
+  MAC: 'Workstation',
+  NMS_COMPUTER: 'Workstation',
+  MANAGED_DEVICE: 'Managed Device',
+  ANDROID: 'Mobile',
+  APPLE_IOS: 'Mobile',
+  NMS_PHONE: 'Mobile',
+  APPLE_IPADOS: 'Tablet',
+  VMWARE_VM_HOST: 'Virtualization Host',
+  HYPERV_VMM_HOST: 'Virtualization Host',
+  NMS_VM_HOST: 'Virtualization Host',
+  VMWARE_VM_GUEST: 'Virtual Machine',
+  HYPERV_VMM_GUEST: 'Virtual Machine',
+  NMS_VIRTUAL_MACHINE: 'Virtual Machine',
+  CLOUD_MONITOR_TARGET: 'Cloud Monitor',
+  NMS_SWITCH: 'Switch',
+  NMS_ROUTER: 'Router',
+  NMS_FIREWALL: 'Firewall',
+  NMS_PRIVATE_NETWORK_GATEWAY: 'Network Gateway',
+  NMS_PRINTER: 'Printer',
+  NMS_SCANNER: 'Scanner',
+  NMS_DIAL_MANAGER: 'Dial Manager',
+  NMS_WAP: 'Wireless Access Point',
+  NMS_IPSLA: 'Network Monitor',
+  NMS_APPLIANCE: 'Network Appliance',
+  NMS_OTHER: 'Other',
+  NMS_NETWORK_MANAGEMENT_AGENT: 'Network Management Agent',
+  UNMANAGED_DEVICE: 'Unmanaged Device',
+};
+
+export function ninjaAssetType(nodeClass: unknown): string {
+  return NINJA_ASSET_TYPES[text(nodeClass)] ?? 'Device';
+}
+
+/** Convert one organization-scoped Ninja device into the portal asset contract. */
+function customFieldValue(row: JsonObject | undefined, key: string): unknown {
+  if (!row) return undefined;
+  const value = object(row.fields)[key];
+  const nested = object(value);
+  return Object.hasOwn(nested, 'value') ? nested.value : value;
+}
+
+export function normalizeNinjaAsset(
+  tenantId: string,
+  row: JsonObject,
+  customFields?: JsonObject,
+): Asset | null {
+  const id = number(row.id);
+  if (id === undefined || !Number.isInteger(id) || id <= 0) return null;
+  const system = object(row.system);
+  const warranty = object(object(row.references).warranty);
+  const warrantyStart = epoch(warranty.startDate) ?? epoch(customFieldValue(customFields, 'warrantyStartDate'));
+  const warrantyEnd = epoch(warranty.endDate) ?? epoch(customFieldValue(customFields, 'warrantyEndDate'));
+  const name = [row.displayName, row.systemName, row.dnsName, row.netbiosName]
+    .map(text)
+    .find(Boolean) ?? `Ninja device ${id}`;
+
+  return {
+    id: `ninja-device-${id}`,
+    tenantId,
+    name,
+    category: 'hardware',
+    type: ninjaAssetType(row.nodeClass),
+    status: 'in-service',
+    model: text(system.model),
+    ...(warrantyStart ? { warrantyStart } : {}),
+    ...(warrantyEnd ? { warrantyEnd } : {}),
+  };
 }
 
 /** NinjaOne device filters are URL encoded in the df parameter. */
@@ -49,6 +126,13 @@ export class NinjaOneClient {
       if (page.length < 1000 || lastId === undefined || lastId === after) return rows;
       after = lastId;
     }
+  }
+
+  async listDeviceCustomFields(organizationId: number): Promise<JsonObject[]> {
+    return this.getReport('/v2/queries/custom-fields', {
+      df: ninjaOrganizationFilter(organizationId),
+      pageSize: '1000',
+    });
   }
 
   async deviceDetail(deviceId: number): Promise<Record<string, JsonObject[]>> {
