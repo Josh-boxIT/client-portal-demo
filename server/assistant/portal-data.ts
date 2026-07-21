@@ -129,7 +129,7 @@ export async function resolvePortalAccess(
   };
 }
 
-async function ticketsForScope(db: AppDb, scope: PortalAccessScope): Promise<Ticket[]> {
+export async function ticketsForScope(db: AppDb, scope: PortalAccessScope): Promise<Ticket[]> {
   const seed = getSeed(scope.tenantId);
   const [created, mutations] = await Promise.all([
     demoTicketRepo(db).list(scope.tenantId),

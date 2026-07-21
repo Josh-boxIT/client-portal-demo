@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Zap, Ticket, Users, HardDrive, Key,
   Map, PresentationIcon, DollarSign, ShieldAlert, BarChart3,
   FileText, ClipboardList, Newspaper, Phone, UserMinus, ListChecks,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session';
@@ -53,6 +54,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Queue Attention',
         href: '/queue-attention',
         icon: <ListChecks className="h-4 w-4" />,
+        staffOnly: true,
+      },
+      {
+        label: 'Sales Opportunities',
+        href: '/sales-opportunities',
+        icon: <BriefcaseBusiness className="h-4 w-4" />,
         staffOnly: true,
       },
     ],

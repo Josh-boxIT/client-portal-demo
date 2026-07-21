@@ -2,6 +2,7 @@ import { brightwaterSeed } from './seed/brightwater';
 import { cedarvineSeed } from './seed/cedarvine';
 import { northwindSeed } from './seed/northwind';
 import type { TenantSeed } from '@/services/types';
+import { getSalesSignalTickets } from './seed/salesOpportunities';
 
 const seedMap: Record<string, TenantSeed> = {
   brightwater: brightwaterSeed,
@@ -42,7 +43,9 @@ function buildDefaultSeed(tenantId: string): TenantSeed {
 }
 
 export function getSeed(tenantId: string): TenantSeed {
-  return seedMap[tenantId] ?? buildDefaultSeed(tenantId);
+  const seed = seedMap[tenantId] ?? buildDefaultSeed(tenantId);
+  return { ...seed, tickets: [...seed.tickets, ...getSalesSignalTickets(tenantId)] };
 }
 
 export { brightwaterSeed, cedarvineSeed, northwindSeed };
+export { getDemoAgreements } from './seed/salesOpportunities';
