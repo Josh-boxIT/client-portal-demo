@@ -76,8 +76,6 @@ function buildFakeBase() {
     assets: {} as BaseServices['assets'],
     roadmap: {} as BaseServices['roadmap'],
     qbr: {} as BaseServices['qbr'],
-    budget: {} as BaseServices['budget'],
-    risk: {} as BaseServices['risk'],
     metrics: {} as BaseServices['metrics'],
     documents: {} as BaseServices['documents'],
     forms: {} as BaseServices['forms'],

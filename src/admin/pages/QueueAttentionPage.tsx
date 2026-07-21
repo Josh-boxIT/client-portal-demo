@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   AlertTriangle,
   Bot,
@@ -15,7 +16,6 @@ import { useServices } from '@/services/context';
 import { useAuthStore } from '@/store/auth';
 import { useSessionStore } from '@/store/session';
 import { useTenantStore } from '@/theme/tenantStore';
-import { getSeed } from '@/data';
 import type {
   BacklogIntelligenceItem,
   BacklogIntelligenceSnapshot,
@@ -247,15 +247,17 @@ function AttentionRow({
 }
 
 export function QueueAttentionPage() {
+  const identity = useAuthStore((state) => state.identity);
+
+  if (identity?.role !== 'admin') return <Navigate to="/" replace />;
+
+  return <AdminQueueAttentionPage />;
+}
+
+function AdminQueueAttentionPage() {
   const { backlogIntelligence } = useServices();
-  const { identity } = useAuthStore();
   const { activeTenantId, activePersonaId } = useSessionStore();
   const tenantName = useTenantStore((state) => state.getTenant(activeTenantId)?.name ?? activeTenantId);
-  const isStaff = identity?.role === 'admin' || identity?.role === 'editor';
-  const activePersona = getSeed(activeTenantId).personas.find(
-    (persona) => persona.id === activePersonaId
-  );
-  const viewerAccess = isStaff ? 'staff' : (activePersona?.role ?? 'client-user');
   const [snapshot, setSnapshot] = useState<BacklogIntelligenceSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState('ALL');
@@ -269,7 +271,7 @@ export function QueueAttentionPage() {
     backlogIntelligence
       .getSnapshot({
         tenantId: activeTenantId,
-        viewerAccess,
+        viewerAccess: 'staff',
         personaId: activePersonaId,
       })
       .then(setSnapshot)
@@ -277,7 +279,7 @@ export function QueueAttentionPage() {
         toast.error(error instanceof Error ? error.message : 'Queue Attention data is unavailable');
       })
       .finally(() => setLoading(false));
-  }, [activePersonaId, activeTenantId, backlogIntelligence, viewerAccess]);
+  }, [activePersonaId, activeTenantId, backlogIntelligence]);
 
   const filteredItems = useMemo(() => {
     if (!snapshot) return [];
@@ -350,9 +352,7 @@ export function QueueAttentionPage() {
               Queue Attention
             </h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              {viewerAccess === 'client-user'
-                ? `Your assigned ${tenantName} findings from the latest read-only operational scan.`
-                : `${tenantName} findings from the latest read-only operational scan, ranked for human review.`}
+              {tenantName} findings from the latest read-only operational scan, ranked for human review.
             </p>
           </div>
           <div className="flex flex-col gap-2 text-xs lg:items-end">
@@ -375,7 +375,7 @@ export function QueueAttentionPage() {
         <StatCard
           label="Findings"
           value={snapshot.summary.flaggedTicketCount}
-          detail={`Visible in this ${viewerAccess === 'client-user' ? 'user' : 'company'} view`}
+          detail="Visible in this company view"
           icon={<ListChecks className="h-5 w-5" />}
           tone="border-sky-200 bg-sky-50 text-sky-700"
         />

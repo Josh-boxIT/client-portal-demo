@@ -43,6 +43,7 @@ export interface ClientView {
   id: string;
   slug: string;
   name: string;
+  displayName: string | null;
   status: string;
   vertical: string | null;
   theme: TenantThemeTokens;

@@ -17,7 +17,7 @@ const agreements: Record<string, ConnectWiseAgreement[]> = {
       { id: 'bw-li-1', name: 'Managed Help Desk', description: 'Remote support for covered users', quantity: 28, unitPrice: 145, monthlyAmount: 4060 },
       { id: 'bw-li-2', name: 'Network Management', description: 'Monitoring and management for two sites', quantity: 2, unitPrice: 790, monthlyAmount: 1580 },
       { id: 'bw-li-3', name: 'Microsoft 365 Administration', description: 'Identity and tenant administration', quantity: 28, unitPrice: 30, monthlyAmount: 840 },
-      { id: 'bw-li-4', name: 'Quarterly Technology Review', description: 'Roadmap and budget review', quantity: 1, unitPrice: 360, monthlyAmount: 360 },
+      { id: 'bw-li-4', name: 'Quarterly Technology Review', description: 'Roadmap and planning review', quantity: 1, unitPrice: 360, monthlyAmount: 360 },
     ],
     sourceUpdatedAt: '2026-07-18T14:22:00Z',
   }],

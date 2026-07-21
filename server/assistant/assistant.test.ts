@@ -64,7 +64,7 @@ class PermissionCaptureProvider implements AssistantModelProvider {
   captured: Record<string, PortalRecord[]> = {};
 
   async generate(input: AssistantModelInput): Promise<AssistantModelResult> {
-    for (const domain of ['budgets', 'qbrs', 'tickets', 'form-submissions']) {
+    for (const domain of ['qbrs', 'tickets', 'form-submissions']) {
       this.captured[domain] = await input.executeTool('list_portal_records', { domain, limit: 50 });
     }
     const record = this.captured.tickets[0];
@@ -200,12 +200,38 @@ describe('permission-aware assistant API', () => {
       payload: { content: 'What can I see?', requestId: 'permission-check' },
     });
 
-    expect(provider.captured.budgets).toEqual([]);
     expect(provider.captured.qbrs).toEqual([]);
     expect(provider.captured.tickets.length).toBeGreaterThan(0);
     expect(provider.captured.tickets.every((record) => record.data.requesterId === 'bw-p2')).toBe(true);
     expect(JSON.stringify(provider.captured.tickets)).not.toContain('"internal":true');
     expect(provider.captured['form-submissions']).toEqual([]);
+  });
+
+  it('uses the configured display name in records sent to the model', async () => {
+    const provider = new PermissionCaptureProvider();
+    const app = await makeApp(provider);
+    const admin = await login(app, 'alex.morgan@boxit.demo');
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: '/api/admin/clients/brightwater',
+      headers: { authorization: `Bearer ${admin}` },
+      payload: { displayName: 'Coastal Shipping' },
+    });
+    expect(updated.statusCode).toBe(200);
+
+    const viewer = await login(app, 'marcus.thiele@brightwaterlogistics.com');
+    const headers = authHeaders(viewer);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'What can I see?', requestId: 'display-name-check' },
+    });
+
+    expect(provider.captured.tickets.length).toBeGreaterThan(0);
+    expect(provider.captured.tickets.every((record) => record.clientName === 'Coastal Shipping')).toBe(true);
+    expect(JSON.stringify(provider.captured.tickets)).not.toContain('Brightwater Logistics');
   });
 
   it('does not expose churn while searching a client user\'s granted tenants', async () => {
@@ -255,7 +281,7 @@ describe('permission-aware assistant API', () => {
     });
   });
 
-  it('redacts historical churn answers from client conversation history', async () => {
+  it('redacts historical admin-only insight answers from client conversation history', async () => {
     const app = await makeApp(new NewDataCaptureProvider());
     const token = await login(app, 'marcus.thiele@brightwaterlogistics.com');
     const headers = authHeaders(token);
@@ -276,19 +302,70 @@ describe('permission-aware assistant API', () => {
         tenantId: 'brightwater',
       }],
     });
+    await assistantRepo(app.db).persistTurn({
+      userId: 'demo-client-user',
+      tenantId: 'brightwater',
+      conversationId: created.json().id,
+      requestId: 'historical-queue-attention',
+      userContent: 'What needs queue attention?',
+      assistantContent: 'Ticket 822871 needs immediate attention.',
+      citations: [{
+        sourceId: 'brightwater:queue-attention:item:822871',
+        recordType: 'queue-attention',
+        recordId: 'item:822871',
+        title: 'Queue Attention ticket 822871',
+        href: '/queue-attention',
+        tenantId: 'brightwater',
+      }],
+    });
 
     const response = await app.inject({
       method: 'GET',
       url: `/api/assistant/conversations/${created.json().id}/messages`,
       headers,
     });
-    expect(response.json()[1]).toMatchObject({
-      content: 'This historical churn response is available only to administrators.',
-      citations: [],
-    });
+    const assistantMessages = (response.json() as Array<{
+      role: string;
+      content: string;
+      citations: unknown[];
+    }>).filter(
+      (message) => message.role === 'assistant',
+    );
+    expect(assistantMessages).toHaveLength(2);
+    expect(assistantMessages.every((message) =>
+      message.content === 'This historical insight response is available only to administrators.'
+      && message.citations.length === 0
+    )).toBe(true);
   });
 
-  it('gives staff display-safe Queue Attention records and tenant-specific churn citations', async () => {
+  it('does not expose Queue Attention to editors', async () => {
+    const provider = new NewDataCaptureProvider();
+    const app = await makeApp(provider);
+    await adminUsersRepo(app.db).create({
+      id: 'demo-editor',
+      email: 'editor@boxit.demo',
+      name: 'Demo Editor',
+      role: 'editor',
+      status: 'active',
+    });
+    const token = await login(app, 'editor@boxit.demo');
+    const headers = authHeaders(token);
+    const created = await app.inject({ method: 'POST', url: '/api/assistant/conversations', headers });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/assistant/conversations/${created.json().id}/messages`,
+      headers,
+      payload: { content: 'Summarize queue attention.', requestId: 'editor-queue-attention' },
+    });
+
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0].queueAttention).toEqual([]);
+    expect(provider.calls[0].queueSearch).toEqual([]);
+    const completed = sseEvents(response.body).find((event) => event.type === 'message.completed');
+    expect(completed?.message).toMatchObject({ citations: [] });
+  });
+
+  it('gives admins display-safe Queue Attention records and tenant-specific churn citations', async () => {
     const provider = new NewDataCaptureProvider();
     const app = await makeApp(provider);
     const token = await login(app, 'alex.morgan@boxit.demo');

@@ -8,6 +8,7 @@ import { getChurnAssessment } from '@/data/seed/customerChurn';
 import type { Ticket } from '@/services/types';
 import type { VendorDataService } from '../integrations/vendor-data';
 import type { ChurnService } from '../churn/service';
+import { tenantDisplayName } from '../db/schema';
 
 export const PORTAL_DOMAINS = [
   'actions',
@@ -18,8 +19,6 @@ export const PORTAL_DOMAINS = [
   'assets',
   'roadmaps',
   'qbrs',
-  'budgets',
-  'risks',
   'customer-churn',
   'metrics',
   'queue-attention',
@@ -64,8 +63,6 @@ function recordHref(domain: PortalDomain, id: string): string {
     case 'assets': return '/assets';
     case 'roadmaps': return '/roadmaps';
     case 'qbrs': return '/qbrs';
-    case 'budgets': return '/budget';
-    case 'risks': return '/risk';
     case 'customer-churn': return '/customer-churn';
     case 'metrics': return '/reports';
     case 'queue-attention': return '/queue-attention';
@@ -215,7 +212,7 @@ export async function buildPortalRecords(
 ): Promise<PortalRecord[]> {
   const seed = getSeed(scope.tenantId);
   const tenant = configStore.tenantById(scope.tenantId)!;
-  const clientName = tenant.name;
+  const clientName = tenantDisplayName(tenant);
   const [people, devices, tickets] = vendorData
     ? await Promise.all([
         vendorData.people(tenant).then((result) => result.data),
@@ -245,9 +242,7 @@ export async function buildPortalRecords(
   push('roadmaps', seed.roadmap, (value) => String(value.title));
   if (scope.clientRole === 'client-admin') {
     push('qbrs', seed.qbrs, (value) => `${String(value.quarter)} QBR`);
-    push('budgets', seed.budgetLines, (value) => `${String(value.category)} · ${String(value.period)}`);
   }
-  push('risks', seed.risks, (value) => String(value.title));
   const churnAssessment = scope.isAdmin
     ? churn
       ? await churn.get(scope.tenantId)
@@ -257,7 +252,7 @@ export async function buildPortalRecords(
     push('customer-churn', [{ id: 'assessment', ...churnAssessment }], () => 'Customer churn assessment');
   }
   push('metrics', seed.metricSeries, (value) => String(value.label));
-  if (scope.isStaff) {
+  if (scope.isAdmin) {
     const snapshot = backlogIntelligenceSnapshot;
     push('queue-attention', [{
       id: 'overview',

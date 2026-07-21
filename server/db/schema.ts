@@ -39,6 +39,7 @@ export const tenants = sqliteTable('tenants', {
   id: text('id').primaryKey(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
+  displayName: text('display_name'),
   vertical: text('vertical'),
   theme: text('theme', { mode: 'json' }).$type<TenantThemeTokens>().notNull(),
   logo: text('logo', { mode: 'json' }).$type<LogoDescriptor>().notNull(),
@@ -243,6 +244,11 @@ export const assistantMessages = sqliteTable('assistant_messages', {
 
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
+
+export function tenantDisplayName(tenant: Pick<Tenant, 'name' | 'displayName'>): string {
+  return tenant.displayName?.trim() || tenant.name;
+}
+
 export type AuditEntry = typeof auditLog.$inferSelect;
 export type AdminUserRow = typeof adminUsers.$inferSelect;
 export type NewAdminUser = typeof adminUsers.$inferInsert;

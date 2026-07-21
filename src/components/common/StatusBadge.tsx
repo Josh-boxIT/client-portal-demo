@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { TicketStatus, TicketPriority, RiskSeverity, PersonStatus, DeviceStatus, AssetStatus, LicenseStatus } from '@/services/types';
+import type { TicketStatus, TicketPriority, PersonStatus, DeviceStatus, AssetStatus, LicenseStatus } from '@/services/types';
 
 // ─── Ticket Status ────────────────────────────────────────────────────────────
 
@@ -32,24 +32,6 @@ const ticketPriorityConfig: Record<TicketPriority, { label: string; className: s
 
 export function TicketPriorityBadge({ priority }: { priority: TicketPriority }) {
   const config = ticketPriorityConfig[priority] ?? { label: priority, className: '' };
-  return (
-    <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold', config.className)}>
-      {config.label}
-    </span>
-  );
-}
-
-// ─── Risk Severity ────────────────────────────────────────────────────────────
-
-const riskSeverityConfig: Record<RiskSeverity, { label: string; className: string }> = {
-  low: { label: 'Low', className: 'bg-green-100 text-green-800 border-green-200' },
-  medium: { label: 'Medium', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  high: { label: 'High', className: 'bg-orange-100 text-orange-800 border-orange-200' },
-  critical: { label: 'Critical', className: 'bg-red-100 text-red-800 border-red-200' },
-};
-
-export function RiskSeverityBadge({ severity }: { severity: RiskSeverity }) {
-  const config = riskSeverityConfig[severity] ?? { label: severity, className: '' };
   return (
     <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold', config.className)}>
       {config.label}

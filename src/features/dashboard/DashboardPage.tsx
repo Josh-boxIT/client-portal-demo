@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useServices } from '@/services/context';
 import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/store/auth';
 import { getSeed } from '@/data/index';
 import type { DashboardKPIs, ActivityItem } from '@/services/types';
 import { StatCard } from '@/components/common/StatCard';
@@ -22,6 +23,7 @@ import {
 import { formatCurrency, formatRelative } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { getDashboardGreetingName } from './greeting';
 
 const QUICK_ACTIONS = [
   { label: 'Onboard a new employee', key: 'onboard-employee', icon: UserPlus },
@@ -34,15 +36,15 @@ const BANNER_ID = 'welcome-banner-v1';
 
 export function DashboardPage() {
   const { metrics, activity } = useServices();
-  const { activeTenantId, activePersonaId, dismissedBanners, dismissBanner, activityFeed } =
+  const { activeTenantId, dismissedBanners, dismissBanner, activityFeed } =
     useSessionStore();
+  const identity = useAuthStore((state) => state.identity);
   const navigate = useNavigate();
 
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [kpiLoading, setKpiLoading] = useState(true);
   const [serviceActivity, setServiceActivity] = useState<ActivityItem[]>([]);
 
-  let persona = null;
   let people: {
     id: string;
     name: string;
@@ -53,7 +55,6 @@ export function DashboardPage() {
 
   try {
     const seed = getSeed(activeTenantId);
-    persona = seed.personas.find((p) => p.id === activePersonaId) ?? null;
     people = seed.people.slice(0, 6);
   } catch {
     /* ignore */
@@ -76,7 +77,7 @@ export function DashboardPage() {
     .filter((item, idx, arr) => arr.findIndex((a) => a.id === item.id) === idx)
     .slice(0, 5);
 
-  const firstName = persona?.name?.split(' ')[0] ?? 'there';
+  const firstName = getDashboardGreetingName(identity);
   const isBannerDismissed = dismissedBanners.includes(BANNER_ID);
 
   return (

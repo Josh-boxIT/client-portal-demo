@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Ticket, Users, HardDrive, Key,
-  Map, PresentationIcon, DollarSign, ShieldAlert, BarChart3,
+  Map, PresentationIcon, BarChart3,
   FileText, ClipboardList, Newspaper, Phone, UserMinus, ListChecks,
   BriefcaseBusiness,
 } from 'lucide-react';
@@ -42,8 +42,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Roadmaps', href: '/roadmaps', icon: <Map className="h-4 w-4" /> },
       { label: 'QBRs', href: '/qbrs', icon: <PresentationIcon className="h-4 w-4" /> },
-      { label: 'Budget', href: '/budget', icon: <DollarSign className="h-4 w-4" /> },
-      { label: 'Risk register', href: '/risk', icon: <ShieldAlert className="h-4 w-4" /> },
     ],
   },
   {
@@ -55,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Queue Attention',
         href: '/queue-attention',
         icon: <ListChecks className="h-4 w-4" />,
+        adminOnly: true,
       },
       {
         label: 'Sales Opportunities',

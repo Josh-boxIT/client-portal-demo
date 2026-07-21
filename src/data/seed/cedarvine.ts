@@ -1,6 +1,6 @@
 import type {
   TenantSeed, Persona, Person, Device, License, Ticket, Asset,
-  RoadmapItem, QBR, BudgetLine, Risk, MetricSeries, Document,
+  RoadmapItem, QBR, MetricSeries, Document,
   FormDef, NewsItem, ActivityItem, TicketMessage,
 } from '@/services/types';
 
@@ -154,34 +154,6 @@ const qbrs: QBR[] = [
   },
 ];
 
-function bp(id: string, category: string, period: string, budgeted: number, actual: number, projected: number, type: 'recurring' | 'one-time'): BudgetLine {
-  return { id, tenantId: T, category, period, budgeted, actual, projected, type };
-}
-
-const budgetLines: BudgetLine[] = [
-  bp('cv-b1', 'Cloud & SaaS', '2026-01', 2800, 2790, 2800, 'recurring'),
-  bp('cv-b2', 'Cloud & SaaS', '2026-02', 2800, 2810, 2800, 'recurring'),
-  bp('cv-b3', 'Cloud & SaaS', '2026-03', 2800, 2800, 2800, 'recurring'),
-  bp('cv-b4', 'Cloud & SaaS', '2026-04', 2800, 2800, 2800, 'recurring'),
-  bp('cv-b5', 'Cloud & SaaS', '2026-05', 2800, 2750, 2800, 'recurring'),
-  bp('cv-b6', 'Cloud & SaaS', '2026-06', 2800, 2800, 2800, 'recurring'),
-  bp('cv-b7', 'Managed IT Services', '2026-01', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b8', 'Managed IT Services', '2026-02', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b9', 'Managed IT Services', '2026-03', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b10', 'Managed IT Services', '2026-04', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b11', 'Managed IT Services', '2026-05', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b12', 'Managed IT Services', '2026-06', 1800, 1800, 1800, 'recurring'),
-  bp('cv-b13', 'Hardware', '2026-06', 5000, 0, 12000, 'one-time'),
-  bp('cv-b14', 'Compliance & Audit', '2026-Q2', 2000, 1600, 2000, 'one-time'),
-];
-
-const risks: Risk[] = [
-  { id: 'cv-rk1', tenantId: T, title: 'POS system PCI scope', description: 'Toast POS terminals need segmentation from corporate network to maintain PCI DSS scope.', severity: 'high', likelihood: 'possible', status: 'mitigating', owner: 'Marco Vitale', mitigation: 'VLAN segmentation in progress. PCI DSS self-assessment in Q3.', category: 'Compliance' },
-  { id: 'cv-rk2', tenantId: T, title: 'EOL server (HP ProLiant 2020)', description: 'Server is past warranty and running older OS. Hardware failure risk.', severity: 'high', likelihood: 'possible', status: 'open', owner: 'Marco Vitale', mitigation: 'Refresh scheduled Q3 2026. Azure backup active.', category: 'Infrastructure' },
-  { id: 'cv-rk3', tenantId: T, title: 'Windows 10 EOL on 2 devices', description: 'Two devices still on Windows 10 which reaches end-of-support October 14, 2025.', severity: 'medium', likelihood: 'almost-certain', status: 'mitigating', owner: 'Marco Vitale', mitigation: 'Replacement devices on order. Target completion August 2026.', category: 'Endpoint' },
-  { id: 'cv-rk4', tenantId: T, title: 'Guest WiFi coverage gaps', description: 'Garden wing WiFi AP showing packet loss — guest complaints increasing.', severity: 'medium', likelihood: 'likely', status: 'open', owner: 'Marco Vitale', mitigation: 'Additional AP ordered. Network redesign planned Q4.', category: 'Network' },
-];
-
 function pts(vals: number[], startDate = '2026-01-01'): { date: string; value: number }[] {
   return vals.map((v, i) => {
     const d = new Date(startDate);
@@ -268,8 +240,6 @@ export const cedarvineSeed: TenantSeed = {
   assets,
   roadmap,
   qbrs,
-  budgetLines,
-  risks,
   metricSeries,
   documents,
   forms,

@@ -72,7 +72,7 @@ NINJAONE_CLIENT_ID=...
 NINJAONE_CLIENT_SECRET=...
 ```
 
-Mapped ConnectWise clients use live people, configurations/devices, tickets from the last 365 days, ticket notes/time entries/attachments, and agreements. Mapped NinjaOne organizations enrich those devices with inventory and telemetry. If a vendor read fails, the portal uses that tenant's demo data. Any vendor mapping marks the client as read-only: ticket creation, replies, status changes, and action-generated tickets are disabled.
+Mapped ConnectWise clients use live people, configurations/devices, tickets from the last 365 days, ticket notes/time entries/attachments, and agreements. Mapped NinjaOne organizations enrich those devices with inventory and telemetry and provide live hardware warranty data for Assets & lifecycle; the tenant's demo software assets remain alongside that hardware. If a vendor read fails, the portal uses that tenant's demo data. Any vendor mapping marks the client as read-only: ticket creation, replies, status changes, and action-generated tickets are disabled.
 
 In **Admin → Clients**, **Import from ConnectWise** searches companies by name or identifier and creates a new portal client from the selected company. The server fetches the selected company directly from ConnectWise, generates local branding, stores its company ID in SQLite, and exposes the new tenant to staff users. Existing clients can still be edited to change their ConnectWise or NinjaOne numeric mappings.
 
@@ -104,7 +104,7 @@ files are ignored by Git and are recreated from the canonical sample data.
 The login page offers three one-click choices:
 
 - **Alex Morgan — boxIT Demo Admin:** all three clients plus Clients, Users, and action-management tools.
-- **Sarah Okonkwo — Brightwater IT Manager:** Brightwater client-admin experience, including Budget and QBR access.
+- **Sarah Okonkwo — Brightwater IT Manager:** Brightwater client-admin experience, including QBR access.
 - **Marcus Thiele — Brightwater Operations Analyst:** Brightwater client-user experience with role-gated planning content.
 
 Authentication is deliberately local and demo-only. Sessions are kept in memory by the backend, so restarting the backend requires signing in again.
@@ -115,7 +115,7 @@ Authentication is deliberately local and demo-only. Sessions are kept in memory 
 - **Cedar & Vine Hospitality** — hospitality, amber/forest branding.
 - **Northwind Health Partners** — healthcare, teal/blue branding.
 
-Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, generated ConnectWise agreements, assets, roadmaps, QBRs, budgets, risks, reports, documents, forms, apps, news, and activity.
+Canonical sample records live in `src/data/seed/`. They cover people, devices, licenses, tickets, generated ConnectWise agreements, assets, roadmaps, QBRs, reports, documents, forms, apps, news, and activity.
 
 SQLite persists:
 

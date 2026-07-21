@@ -2,15 +2,15 @@ import { createHash } from 'node:crypto';
 import { getChurnAssessment, type ChurnAssessment } from '@/data/seed/customerChurn';
 import type { AppDb } from '../db/client';
 import { churnNarrativeRepo } from '../db/repositories';
-import type { Tenant } from '../db/schema';
+import { tenantDisplayName, type Tenant } from '../db/schema';
 import type { ConfigStore } from '../framework/config-store';
 import type { VendorDataService } from '../integrations/vendor-data';
 import { buildChurnAssessment, fallbackChurnNarrative } from './scoring';
 import { CHURN_NARRATIVE_PROMPT_VERSION, type ChurnNarrativeProvider } from './provider';
 
-function narrativeFingerprint(assessmentFingerprint: string): string {
+function narrativeFingerprint(assessmentFingerprint: string, displayName: string): string {
   return createHash('sha256')
-    .update(`${assessmentFingerprint}:${CHURN_NARRATIVE_PROMPT_VERSION}`)
+    .update(`${assessmentFingerprint}:${displayName}:${CHURN_NARRATIVE_PROMPT_VERSION}`)
     .digest('hex').slice(0, 32);
 }
 
@@ -46,7 +46,8 @@ export class ChurnService {
       return getChurnAssessment(tenant.id) ?? buildChurnAssessment(tenant.id, {});
     }
     const base = buildChurnAssessment(tenant.id, await this.vendorData.churnInputs(tenant));
-    const cacheFingerprint = narrativeFingerprint(base.fingerprint!);
+    const displayName = tenantDisplayName(tenant);
+    const cacheFingerprint = narrativeFingerprint(base.fingerprint!, displayName);
     const key = `${tenant.id}:${cacheFingerprint}`;
     if (!forceNarrative) {
       const cached = await this.repo.get(tenant.id);
@@ -81,7 +82,7 @@ export class ChurnService {
       try {
         narrative = await this.provider.generate({
           tenantId: tenant.id,
-          tenantName: tenant.name,
+          tenantName: tenantDisplayName(tenant),
           assessment: base,
           safetyIdentifier: createHash('sha256')
             .update(`client-portal-demo:churn:${tenant.id}`).digest('hex'),

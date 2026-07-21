@@ -2,11 +2,9 @@ import type { Services } from './types';
 import { restPeopleService } from './rest/people';
 import { restDeviceService } from './rest/devices';
 import { mockLicenseService } from './mock/licenses';
-import { mockAssetService } from './mock/assets';
+import { restAssetService } from './rest/assets';
 import { mockRoadmapService } from './mock/roadmap';
 import { mockQBRService } from './mock/qbr';
-import { mockBudgetService } from './mock/budget';
-import { mockRiskService } from './mock/risk';
 import { mockDocumentService } from './mock/documents';
 import { mockNewsService } from './mock/news';
 import { mockActivityService } from './mock/activity';
@@ -27,11 +25,9 @@ export function buildServices(): Services {
     people: restPeopleService,
     devices: restDeviceService,
     licenses: mockLicenseService,
-    assets: mockAssetService,
+    assets: restAssetService,
     roadmap: mockRoadmapService,
     qbr: mockQBRService,
-    budget: mockBudgetService,
-    risk: mockRiskService,
     metrics: demoMetricsService,
     documents: mockDocumentService,
     forms: persistentFormService,

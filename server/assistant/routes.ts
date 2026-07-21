@@ -68,11 +68,14 @@ function streamCompleted(reply: { raw: NodeJS.WritableStream }, message: Assista
 }
 
 const NOT_FOUND_ANSWER = "I couldn't find that in the portal data available to you.";
-const RESTRICTED_CHURN_ANSWER = 'This historical churn response is available only to administrators.';
+const RESTRICTED_INSIGHT_ANSWER = 'This historical insight response is available only to administrators.';
 
 function visibleMessage(message: AssistantMessage, isAdmin: boolean): AssistantMessage {
-  if (isAdmin || !message.citations.some((item) => item.recordType === 'customer-churn')) return message;
-  return { ...message, content: RESTRICTED_CHURN_ANSWER, citations: [] };
+  const hasAdminOnlyCitation = message.citations.some(
+    (item) => item.recordType === 'customer-churn' || item.recordType === 'queue-attention',
+  );
+  if (isAdmin || !hasAdminOnlyCitation) return message;
+  return { ...message, content: RESTRICTED_INSIGHT_ANSWER, citations: [] };
 }
 
 export function registerAssistantRoutes(app: FastifyInstance, options: RegisterAssistantRoutesOptions): void {

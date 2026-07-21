@@ -95,7 +95,7 @@ export function UserFormDialog({ open, user, onClose, onSaved }: Props) {
                 {clients.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={clientIds.includes(c.id)} onChange={() => toggleClient(c.id)} />
-                    <span>{c.name}</span>
+                    <span>{c.displayName || c.name}</span>
                   </label>
                 ))}
                 {clients.length === 0 && <p className="text-xs text-slate-500">No clients available.</p>}
