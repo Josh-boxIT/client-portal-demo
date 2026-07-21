@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import {
   AlertTriangle,
   Bot,
@@ -14,6 +13,9 @@ import {
 import { toast } from 'sonner';
 import { useServices } from '@/services/context';
 import { useAuthStore } from '@/store/auth';
+import { useSessionStore } from '@/store/session';
+import { useTenantStore } from '@/theme/tenantStore';
+import { getSeed } from '@/data';
 import type {
   BacklogIntelligenceItem,
   BacklogIntelligenceSnapshot,
@@ -34,12 +36,14 @@ type BandFilter = 'ALL' | Exclude<BacklogPriorityBand, 'NO_ACTION'>;
 const BAND_LABELS: Record<Exclude<BacklogPriorityBand, 'NO_ACTION'>, string> = {
   ACT_NOW: 'Act now',
   REVIEW_TODAY: 'Review today',
+  REVIEW_THIS_WEEK: 'Review this week',
   MONITOR: 'Monitor',
 };
 
 const BAND_STYLES: Record<Exclude<BacklogPriorityBand, 'NO_ACTION'>, string> = {
   ACT_NOW: 'border-red-200 bg-red-50 text-red-700',
   REVIEW_TODAY: 'border-amber-200 bg-amber-50 text-amber-700',
+  REVIEW_THIS_WEEK: 'border-violet-200 bg-violet-50 text-violet-700',
   MONITOR: 'border-sky-200 bg-sky-50 text-sky-700',
 };
 
@@ -55,6 +59,7 @@ function formatSnapshotTime(value: string): string {
 
 function formatHours(value: number): string {
   if (value < 2) return `${Math.round(value * 60)}m`;
+  if (value >= 48) return `${Math.round(value / 24)}d`;
   return `${Math.round(value)}h`;
 }
 
@@ -138,7 +143,7 @@ function AttentionRow({
         <div className="flex w-full items-center gap-3 xl:w-20 xl:flex-col xl:items-stretch">
           <div className="rounded-lg border bg-muted/40 px-3 py-2 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Risk
+              Attention
             </p>
             <p className="text-2xl font-semibold text-foreground">{item.riskScore}</p>
           </div>
@@ -244,7 +249,13 @@ function AttentionRow({
 export function QueueAttentionPage() {
   const { backlogIntelligence } = useServices();
   const { identity } = useAuthStore();
+  const { activeTenantId, activePersonaId } = useSessionStore();
+  const tenantName = useTenantStore((state) => state.getTenant(activeTenantId)?.name ?? activeTenantId);
   const isStaff = identity?.role === 'admin' || identity?.role === 'editor';
+  const activePersona = getSeed(activeTenantId).personas.find(
+    (persona) => persona.id === activePersonaId
+  );
+  const viewerAccess = isStaff ? 'staff' : (activePersona?.role ?? 'client-user');
   const [snapshot, setSnapshot] = useState<BacklogIntelligenceSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState('ALL');
@@ -253,18 +264,20 @@ export function QueueAttentionPage() {
   const [selectedItem, setSelectedItem] = useState<BacklogIntelligenceItem | null>(null);
 
   useEffect(() => {
-    if (!isStaff) {
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setSnapshot(null);
     backlogIntelligence
-      .getSnapshot()
+      .getSnapshot({
+        tenantId: activeTenantId,
+        viewerAccess,
+        personaId: activePersonaId,
+      })
       .then(setSnapshot)
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : 'Queue Attention data is unavailable');
       })
       .finally(() => setLoading(false));
-  }, [backlogIntelligence, isStaff]);
+  }, [activePersonaId, activeTenantId, backlogIntelligence, viewerAccess]);
 
   const filteredItems = useMemo(() => {
     if (!snapshot) return [];
@@ -279,14 +292,13 @@ export function QueueAttentionPage() {
           item.display.title,
           item.display.serviceSummary,
           item.recommendedLane,
-        ].some((value) => value.toLowerCase().includes(query));
+          item.display.accountName,
+          item.display.assignedResource,
+          item.display.ticketStatus,
+        ].some((value) => value?.toLowerCase().includes(query));
       return matchesQueue && matchesBand && matchesSearch;
     });
   }, [snapshot, queue, band, search]);
-
-  if (!isStaff) {
-    return <Navigate to="/" replace />;
-  }
 
   if (loading) {
     return (
@@ -316,11 +328,9 @@ export function QueueAttentionPage() {
     );
   }
 
-  const recurrenceClusters = snapshot.items.filter((item) => item.itemType === 'CLUSTER').length;
-  const planCheckpointCount = snapshot.items.filter(
-    (item) => item.plannedWorkState === 'PLAN_STALE'
+  const auditPendingCount = snapshot.items.filter(
+    (item) => item.display.auditVerifiedOpen === false
   ).length;
-  const waitingFollowUpCount = snapshot.items.filter((item) => item.display.followUpDueAt).length;
 
   return (
     <div className="space-y-6">
@@ -340,8 +350,9 @@ export function QueueAttentionPage() {
               Queue Attention
             </h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Explainable, human-approved review priorities from the latest scanner snapshot.
-              Bundled alerts stay under their active parent.
+              {viewerAccess === 'client-user'
+                ? `Your assigned ${tenantName} findings from the latest read-only operational scan.`
+                : `${tenantName} findings from the latest read-only operational scan, ranked for human review.`}
             </p>
           </div>
           <div className="flex flex-col gap-2 text-xs lg:items-end">
@@ -362,31 +373,31 @@ export function QueueAttentionPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Queue summary">
         <StatCard
+          label="Findings"
+          value={snapshot.summary.flaggedTicketCount}
+          detail={`Visible in this ${viewerAccess === 'client-user' ? 'user' : 'company'} view`}
+          icon={<ListChecks className="h-5 w-5" />}
+          tone="border-sky-200 bg-sky-50 text-sky-700"
+        />
+        <StatCard
           label="Act now"
           value={snapshot.summary.countsByPriorityBand.ACT_NOW}
-          detail="SLA-sensitive or material-impact work"
+          detail="Highest-priority stagnant work"
           icon={<AlertTriangle className="h-5 w-5" />}
           tone="border-red-200 bg-red-50 text-red-700"
         />
         <StatCard
           label="Review today"
           value={snapshot.summary.countsByPriorityBand.REVIEW_TODAY}
-          detail="Stale, weak-handoff, or recurrence review"
+          detail="Needs same-day human review"
           icon={<ListChecks className="h-5 w-5" />}
           tone="border-amber-200 bg-amber-50 text-amber-700"
         />
         <StatCard
-          label="Monitor"
-          value={snapshot.summary.countsByPriorityBand.MONITOR}
-          detail="Watch lane with no immediate action"
+          label="Review this week"
+          value={snapshot.summary.countsByPriorityBand.REVIEW_THIS_WEEK}
+          detail="Stagnant work queued for weekly review"
           icon={<Eye className="h-5 w-5" />}
-          tone="border-sky-200 bg-sky-50 text-sky-700"
-        />
-        <StatCard
-          label="Recurrence clusters"
-          value={recurrenceClusters}
-          detail={`${snapshot.summary.scannedTicketCount - snapshot.summary.eligibleTicketCount} child records collapsed into evidence`}
-          icon={<Layers3 className="h-5 w-5" />}
           tone="border-violet-200 bg-violet-50 text-violet-700"
         />
       </section>
@@ -402,7 +413,7 @@ export function QueueAttentionPage() {
               disabled
               className="h-9 w-full rounded-md border bg-muted px-3 text-sm text-muted-foreground disabled:opacity-100"
             >
-              <option>Organization</option>
+              <option>Current company</option>
             </select>
           </label>
           <label className="space-y-1.5 text-xs text-muted-foreground">
@@ -411,7 +422,7 @@ export function QueueAttentionPage() {
               disabled
               className="h-9 w-full rounded-md border bg-muted px-3 text-sm text-muted-foreground disabled:opacity-100"
             >
-              <option>All demo accounts</option>
+              <option>{tenantName}</option>
             </select>
           </label>
           <label className="space-y-1.5 text-xs text-muted-foreground">
@@ -439,6 +450,7 @@ export function QueueAttentionPage() {
               <option value="ALL">All bands</option>
               <option value="ACT_NOW">Act now</option>
               <option value="REVIEW_TODAY">Review today</option>
+              <option value="REVIEW_THIS_WEEK">Review this week</option>
               <option value="MONITOR">Monitor</option>
             </select>
           </label>
@@ -465,13 +477,13 @@ export function QueueAttentionPage() {
                 Ranked operational queue
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {filteredItems.length} parent or standalone{' '}
-                {filteredItems.length === 1 ? 'item' : 'items'} shown
+                {filteredItems.length} of {snapshot.summary.displayedItemCount ?? snapshot.items.length}{' '}
+                selected findings shown
               </p>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Gauge className="h-4 w-4" />
-              Highest risk first
+              Highest attention first
             </div>
           </div>
           {filteredItems.length > 0 ? (
@@ -491,31 +503,35 @@ export function QueueAttentionPage() {
             <div className="mt-3 divide-y">
               <div className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground">Needs plan checkpoint</p>
+                  <p className="text-xs font-medium text-foreground">Unassigned findings</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Missing or overdue proactive plans
+                    No resource owner in the source scan
                   </p>
                 </div>
-                <span className="text-lg font-semibold text-foreground">{planCheckpointCount}</span>
+                <span className="text-lg font-semibold text-foreground">
+                  {snapshot.summary.unassignedCount ?? 0}
+                </span>
               </div>
               <div className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground">Waiting follow-up</p>
+                  <p className="text-xs font-medium text-foreground">Audit verification pending</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Customer, vendor, or internal dependency
+                    Visible tickets not confirmed open in PSA
                   </p>
                 </div>
-                <span className="text-lg font-semibold text-foreground">{waitingFollowUpCount}</span>
+                <span className="text-lg font-semibold text-foreground">
+                  {auditPendingCount}
+                </span>
               </div>
               <div className="flex items-center justify-between py-3">
                 <div>
                   <p className="text-xs font-medium text-foreground">Bundled evidence</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Child records hidden from urgency ranking
+                    Child tickets requiring parent verification
                   </p>
                 </div>
                 <span className="text-lg font-semibold text-foreground">
-                  {snapshot.summary.scannedTicketCount - snapshot.summary.eligibleTicketCount}
+                  {snapshot.summary.bundledChildCount ?? 0}
                 </span>
               </div>
             </div>
@@ -595,7 +611,7 @@ export function QueueAttentionPage() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Risk score
+                      Attention score
                     </p>
                     <p className="mt-1 text-lg font-semibold text-foreground">
                       {selectedItem.riskScore}/100
