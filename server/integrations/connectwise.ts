@@ -56,6 +56,11 @@ function infoDate(value: unknown, fallback?: unknown): string {
   return date(info.lastUpdated, date(fallback));
 }
 
+function timestamp(value: unknown): number | undefined {
+  const parsed = Date.parse(text(value));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 /** ConnectWise reference fields use slash paths in conditions, e.g. company/id = 123. */
 export function connectWiseCompanyCondition(companyId: number): string {
   return `company/id = ${companyId}`;
@@ -438,11 +443,31 @@ export function normalizeConnectWiseTicket(
   };
 }
 
-function agreementStatus(row: JsonObject): ConnectWiseAgreement['status'] {
-  if (bool(row.cancelledFlag) || /expired|cancel/.test(text(row.agreementStatus).toLowerCase())) return 'expired';
-  const end = Date.parse(text(row.endDate));
-  if (Number.isFinite(end) && end < Date.now()) return 'expired';
-  if (Number.isFinite(end) && end - Date.now() < 90 * 86_400_000) return 'expiring';
+export function isConnectWiseAgreementActive(row: JsonObject, now = new Date()): boolean {
+  if (bool(row.cancelledFlag)) return false;
+  const status = text(row.agreementStatus).trim().toLowerCase();
+  if (status && status !== 'active') return false;
+  const at = now.getTime();
+  const start = timestamp(row.startDate);
+  const end = timestamp(row.endDate);
+  if (start !== undefined && start > at) return false;
+  return bool(row.noEndingDateFlag) || end === undefined || end >= at;
+}
+
+export function isConnectWiseAgreementAdditionActive(addition: JsonObject, now = new Date()): boolean {
+  if (bool(addition.cancelledFlag)) return false;
+  const status = text(addition.agreementStatus).trim().toLowerCase();
+  if (status && status !== 'active') return false;
+  const at = now.getTime();
+  const effective = timestamp(addition.effectiveDate);
+  const cancelled = timestamp(addition.cancelledDate);
+  return (effective === undefined || effective <= at) && (cancelled === undefined || cancelled > at);
+}
+
+function agreementStatus(row: JsonObject, now: Date): ConnectWiseAgreement['status'] {
+  if (!isConnectWiseAgreementActive(row, now)) return 'expired';
+  const end = timestamp(row.endDate);
+  if (end !== undefined && end - now.getTime() < 90 * 86_400_000) return 'expiring';
   return 'active';
 }
 
@@ -450,21 +475,24 @@ export function normalizeConnectWiseAgreement(
   row: JsonObject,
   additions: JsonObject[],
   tenantId: string,
+  now = new Date(),
 ): ConnectWiseAgreement | null {
   const id = number(row.id);
   if (id === undefined) return null;
-  const lineItems = additions.map((addition, index) => {
-    const quantity = number(addition.quantity) ?? number(addition.billedQuantity) ?? 0;
-    const unitPrice = number(addition.unitPrice) ?? 0;
-    return {
-      id: `cw-addition-${number(addition.id) ?? index}`,
-      name: referenceName(addition.product) || text(addition.description) || 'Agreement addition',
-      description: text(addition.invoiceDescription) || text(addition.description),
-      quantity,
-      unitPrice,
-      monthlyAmount: number(addition.extPrice) ?? quantity * unitPrice,
-    };
-  });
+  const lineItems = additions
+    .filter((addition) => isConnectWiseAgreementAdditionActive(addition, now))
+    .map((addition, index) => {
+      const quantity = number(addition.quantity) ?? number(addition.billedQuantity) ?? 0;
+      const unitPrice = number(addition.unitPrice) ?? 0;
+      return {
+        id: `cw-addition-${number(addition.id) ?? index}`,
+        name: referenceName(addition.product) || text(addition.description) || 'Agreement addition',
+        description: text(addition.invoiceDescription) || text(addition.description),
+        quantity,
+        unitPrice,
+        monthlyAmount: number(addition.extPrice) ?? quantity * unitPrice,
+      };
+    });
   const monthlyAmount = number(row.billAmount) ?? lineItems.reduce((sum, item) => sum + item.monthlyAmount, 0);
   const contact = object(row.contact);
   return {
@@ -473,7 +501,7 @@ export function normalizeConnectWiseAgreement(
     externalId: String(id),
     name: text(row.name) || `Agreement ${id}`,
     type: referenceName(row.type) || 'Agreement',
-    status: agreementStatus(row),
+    status: agreementStatus(row, now),
     startDate: text(row.startDate),
     endDate: text(row.endDate),
     autoRenew: bool(row.noEndingDateFlag),

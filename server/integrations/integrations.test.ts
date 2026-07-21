@@ -10,6 +10,9 @@ import {
   connectWiseTimeEntryConditions,
   connectWiseTicketConditions,
   ConnectWiseClient,
+  isConnectWiseAgreementActive,
+  isConnectWiseAgreementAdditionActive,
+  normalizeConnectWiseAgreement,
 } from './connectwise';
 import { ninjaOrganizationFilter, NinjaOneClient } from './ninjaone';
 import { CONNECTWISE_CACHE_REFRESH_MS } from './vendor-data';
@@ -143,27 +146,73 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
     if (/\/service\/tickets\/1200\/documents$/.test(url.pathname)) return json({ error: 'forbidden' }, 403);
     if (url.pathname.endsWith('/system/documents')) return json([{ id: 1300, title: 'VPN error', fileName: 'vpn-error.png', imageFlag: true }]);
     if (/\/system\/documents\/1300\/download$/.test(url.pathname)) return new Response(new Uint8Array([137, 80, 78, 71]), { status: 200, headers: { 'content-type': 'image/png' } });
-    if (url.pathname.endsWith('/finance/agreements')) return json([{
-      id: 300,
-      name: 'Managed Services',
-      type: { id: 1, name: 'Managed Services' },
-      company: { id: 42, name: 'Brightwater' },
-      contact: { id: 700, name: 'Sarah Okonkwo' },
-      startDate: '2026-01-01T00:00:00Z',
-      endDate: '2026-12-31T00:00:00Z',
-      billAmount: 5000,
-      billingCycle: { id: 1, name: 'Monthly' },
-      agreementStatus: 'Active',
-      sla: { id: 1, name: 'Standard' },
-      _info: { lastUpdated: '2026-07-20T12:00:00Z' },
-    }]);
-    if (/\/finance\/agreements\/300\/additions$/.test(url.pathname)) return json([{
-      id: 301,
-      product: { id: 10, identifier: 'Managed Endpoint' },
-      description: 'Managed endpoint coverage',
+    if (url.pathname.endsWith('/finance/agreements')) return json([
+      {
+        id: 300,
+        name: 'Managed Services',
+        type: { id: 1, name: 'Managed Services' },
+        company: { id: 42, name: 'Brightwater' },
+        contact: { id: 700, name: 'Sarah Okonkwo' },
+        startDate: '2020-01-01T00:00:00Z',
+        endDate: '2099-12-31T00:00:00Z',
+        billAmount: 5000,
+        billingCycle: { id: 1, name: 'Monthly' },
+        agreementStatus: 'Active',
+        sla: { id: 1, name: 'Standard' },
+        _info: { lastUpdated: '2026-07-20T12:00:00Z' },
+      },
+      {
+        id: 302,
+        name: 'Security Services',
+        company: { id: 42, name: 'Brightwater' },
+        startDate: '2020-01-01T00:00:00Z',
+        endDate: '2099-12-31T00:00:00Z',
+        agreementStatus: 'Active',
+      },
+      {
+        id: 399,
+        name: 'Retired Services',
+        company: { id: 42, name: 'Brightwater' },
+        startDate: '2020-01-01T00:00:00Z',
+        endDate: '2099-12-31T00:00:00Z',
+        agreementStatus: 'Inactive',
+      },
+    ]);
+    if (/\/finance\/agreements\/300\/additions$/.test(url.pathname)) return json([
+      {
+        id: 301,
+        product: { id: 10, identifier: 'Managed Endpoint' },
+        description: 'Managed endpoint coverage',
+        effectiveDate: '2020-01-01T00:00:00Z',
+        quantity: 1,
+        unitPrice: 125,
+        extPrice: 125,
+      },
+      {
+        id: 303,
+        product: { id: 11, identifier: 'Cancelled Backup' },
+        effectiveDate: '2020-01-01T00:00:00Z',
+        cancelledDate: '2021-01-01T00:00:00Z',
+        quantity: 1,
+        unitPrice: 50,
+        extPrice: 50,
+      },
+      {
+        id: 304,
+        product: { id: 12, identifier: 'Future Service' },
+        effectiveDate: '2999-01-01T00:00:00Z',
+        quantity: 1,
+        unitPrice: 75,
+        extPrice: 75,
+      },
+    ]);
+    if (/\/finance\/agreements\/302\/additions$/.test(url.pathname)) return json([{
+      id: 305,
+      product: { id: 13, identifier: 'Security Monitoring' },
+      effectiveDate: '2020-01-01T00:00:00Z',
       quantity: 1,
-      unitPrice: 125,
-      extPrice: 125,
+      unitPrice: 200,
+      extPrice: 200,
     }]);
     if (url.pathname === '/v2/devices-detailed') return json([{
       id: 500,
@@ -188,6 +237,28 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
 }
 
 describe('vendor API request construction', () => {
+  it('recognizes only currently active agreements and additions', () => {
+    const now = new Date('2026-07-21T12:00:00Z');
+    expect(isConnectWiseAgreementActive({ agreementStatus: 'Active', startDate: '2026-01-01', endDate: '2026-12-31' }, now)).toBe(true);
+    expect(isConnectWiseAgreementActive({ agreementStatus: 'Inactive', startDate: '2026-01-01', endDate: '2026-12-31' }, now)).toBe(false);
+    expect(isConnectWiseAgreementActive({ agreementStatus: 'Active', startDate: '2027-01-01', endDate: '2027-12-31' }, now)).toBe(false);
+    expect(isConnectWiseAgreementAdditionActive({ effectiveDate: '2026-01-01', cancelledDate: '2026-12-31' }, now)).toBe(true);
+    expect(isConnectWiseAgreementAdditionActive({ agreementStatus: 'Inactive', effectiveDate: '2026-01-01' }, now)).toBe(false);
+    expect(isConnectWiseAgreementAdditionActive({ effectiveDate: '2026-08-01' }, now)).toBe(false);
+    expect(isConnectWiseAgreementAdditionActive({ effectiveDate: '2026-01-01', cancelledDate: '2026-07-01' }, now)).toBe(false);
+
+    const agreement = normalizeConnectWiseAgreement({
+      id: 300,
+      agreementStatus: 'Active',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+    }, [
+      { id: 1, description: 'Active', effectiveDate: '2026-01-01' },
+      { id: 2, description: 'Cancelled', effectiveDate: '2026-01-01', cancelledDate: '2026-07-01' },
+    ], 'brightwater', now);
+    expect(agreement?.lineItems.map((item) => item.id)).toEqual(['cw-addition-1']);
+  });
+
   it('uses documented ConnectWise slash-reference conditions and GET-only reads', async () => {
     const requests: URL[] = [];
     const client = new ConnectWiseClient(env.connectWise!, mockVendorFetch(requests));
@@ -344,8 +415,15 @@ describe('mapped vendor-backed portal routes', () => {
     expect(attachment.headers['content-type']).toBe('image/png');
 
     const context = await app.inject({ method: 'GET', url: '/api/sales-opportunities/context', headers: headers() });
-    expect(context.json()).toMatchObject({ agreements: [{ id: 'cw-agreement-300', lineItems: [{ id: 'cw-addition-301' }] }], ticketCount: 1 });
+    expect(context.json()).toMatchObject({
+      agreements: [
+        { id: 'cw-agreement-300', lineItems: [{ id: 'cw-addition-301' }] },
+        { id: 'cw-agreement-302', lineItems: [{ id: 'cw-addition-305' }] },
+      ],
+      ticketCount: 1,
+    });
     expect(requests.filter((url) => url.pathname.endsWith('/finance/agreements'))).toHaveLength(1);
+    expect(requests.some((url) => /\/finance\/agreements\/399\/additions$/.test(url.pathname))).toBe(false);
   });
 
   it('rejects all ticket mutations for a mapped client', async () => {

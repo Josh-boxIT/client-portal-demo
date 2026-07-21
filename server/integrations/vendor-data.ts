@@ -8,6 +8,7 @@ import type { ConnectWiseCacheResource, Tenant } from '../db/schema';
 import {
   ConnectWiseClient,
   type ConnectWiseCompanySummary,
+  isConnectWiseAgreementActive,
   normalizeConnectWiseAgreement,
   normalizeConnectWiseCompany,
   normalizeConnectWiseConfiguration,
@@ -36,6 +37,17 @@ export const CONNECTWISE_CACHE_REFRESH_MS = 5 * 60 * 1000;
 
 function demo<T>(data: T, fallback = false): VendorResult<T> {
   return { data, source: 'demo', fallback };
+}
+
+function activeAgreements(agreements: ConnectWiseAgreement[], now = new Date()): ConnectWiseAgreement[] {
+  const at = now.getTime();
+  return agreements.filter((agreement) => {
+    if (agreement.status === 'expired') return false;
+    const start = Date.parse(agreement.startDate);
+    const end = Date.parse(agreement.endDate);
+    if (Number.isFinite(start) && start > at) return false;
+    return agreement.autoRenew || !Number.isFinite(end) || end >= at;
+  });
 }
 
 export class VendorDataService {
@@ -351,10 +363,14 @@ export class VendorDataService {
   }
 
   async agreements(tenant: Tenant): Promise<VendorResult<ConnectWiseAgreement[]>> {
-    const seed = getDemoAgreements(tenant.id);
+    const seed = activeAgreements(getDemoAgreements(tenant.id));
     if (tenant.connectWiseCompanyId === null) return demo(seed);
     const cached = await this.cached<ConnectWiseAgreement>(tenant.id, 'agreements');
-    if (cached !== undefined) return { data: cached, source: 'connectwise', fallback: false };
+    if (cached !== undefined) return {
+      data: activeAgreements(cached),
+      source: 'connectwise',
+      fallback: false,
+    };
     if (!this.connectWise) return demo(seed, true);
     try {
       const data = await this.loadAgreements(tenant);
@@ -367,11 +383,14 @@ export class VendorDataService {
 
   private async loadAgreements(tenant: Tenant): Promise<ConnectWiseAgreement[]> {
     const rows = await this.connectWise!.listAgreements(tenant.connectWiseCompanyId!);
-    const agreements = await Promise.all(rows.map(async (row) => {
-      const id = typeof row.id === 'number' ? row.id : undefined;
-      const additions = id === undefined ? [] : await this.connectWise!.listAgreementAdditions(id);
-      return normalizeConnectWiseAgreement(row, additions, tenant.id);
-    }));
+    const now = new Date();
+    const agreements = await Promise.all(
+      rows.filter((row) => isConnectWiseAgreementActive(row, now)).map(async (row) => {
+        const id = typeof row.id === 'number' ? row.id : undefined;
+        const additions = id === undefined ? [] : await this.connectWise!.listAgreementAdditions(id);
+        return normalizeConnectWiseAgreement(row, additions, tenant.id, now);
+      }),
+    );
     return agreements.filter((agreement): agreement is ConnectWiseAgreement => Boolean(agreement));
   }
 }

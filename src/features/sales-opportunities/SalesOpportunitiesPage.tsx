@@ -234,14 +234,19 @@ export function SalesOpportunitiesPage() {
       {mode === 'current' && currentContext && (
         <>
           <div className="mb-6 grid gap-4 md:grid-cols-3">
-            <Card><CardContent className="flex items-center gap-4 p-5"><FileCheck2 className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">ConnectWise agreement</p><p className="font-semibold">{currentContext.agreements[0]?.name ?? 'No agreement'}</p></div></CardContent></Card>
+            <Card><CardContent className="flex items-center gap-4 p-5"><FileCheck2 className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Active ConnectWise agreements</p><p className="text-2xl font-semibold">{currentContext.agreements.length}</p></div></CardContent></Card>
             <Card><CardContent className="flex items-center gap-4 p-5"><Ticket className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Tickets searched</p><p className="text-2xl font-semibold">{currentContext.ticketCount}</p></div></CardContent></Card>
             <Card><CardContent className="flex items-center gap-4 p-5"><ShieldAlert className="h-7 w-7 text-primary" /><div><p className="text-sm text-muted-foreground">Churn risk</p><p className="text-2xl font-semibold">{currentContext.churn?.score ?? '—'}<span className="text-sm text-muted-foreground"> / 100</span></p></div></CardContent></Card>
           </div>
 
-          {currentContext.agreements.map((agreement) => (
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Active agreements</h2>
+            <p className="text-sm text-muted-foreground">Additions are grouped under the agreement they belong to.</p>
+          </div>
+
+          {currentContext.agreements.map((agreement, agreementIndex) => (
             <Card id={`agreement-${agreement.id}`} key={agreement.id} className="mb-8 scroll-mt-20">
-              <CardHeader><div className="flex flex-wrap items-center gap-3"><BriefcaseBusiness className="h-5 w-5 text-primary" /><CardTitle>{agreement.name}</CardTitle><Badge>{agreement.status}</Badge><Badge variant="outline">Demo ConnectWise data</Badge></div></CardHeader>
+              <CardHeader><div className="flex flex-wrap items-center gap-3"><BriefcaseBusiness className="h-5 w-5 text-primary" /><CardTitle>{agreement.name}</CardTitle><Badge variant="secondary">Agreement {agreementIndex + 1} of {currentContext.agreements.length}</Badge><Badge>{agreement.status}</Badge><Badge variant="outline">Demo ConnectWise data</Badge></div></CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div><p className="text-muted-foreground">Agreement ID</p><p className="font-medium">{agreement.externalId}</p></div>
@@ -252,10 +257,14 @@ export function SalesOpportunitiesPage() {
                   <div className="sm:col-span-2"><p className="text-muted-foreground">SLA</p><p className="font-medium">{agreement.sla}</p></div>
                   <div><p className="text-muted-foreground">Billing</p><p className="font-medium capitalize">{agreement.billingCycle}</p></div>
                 </div>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Line item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Monthly</th></tr></thead><tbody>
-                    {agreement.lineItems.map((item) => <tr key={item.id} className="border-t"><td className="px-3 py-2"><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.description}</p></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.monthlyAmount)}</td></tr>)}
-                  </tbody></table>
+                <div>
+                  <div className="mb-2 flex items-baseline justify-between gap-3"><p className="font-semibold">Active additions</p><p className="text-xs text-muted-foreground">{agreement.lineItems.length} on this agreement</p></div>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Line item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Monthly</th></tr></thead><tbody>
+                      {agreement.lineItems.map((item) => <tr key={item.id} className="border-t"><td className="px-3 py-2"><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.description}</p></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.monthlyAmount)}</td></tr>)}
+                      {agreement.lineItems.length === 0 && <tr className="border-t"><td className="px-3 py-4 text-center text-muted-foreground" colSpan={3}>No active additions on this agreement.</td></tr>}
+                    </tbody></table>
+                  </div>
                 </div>
                 <div className="grid gap-4 text-sm md:grid-cols-3">
                   <div><p className="font-semibold">Contacts</p>{agreement.contractContacts.map((contact) => <p key={contact.email} className="mt-1 text-muted-foreground">{contact.name} · {contact.role}</p>)}</div>
