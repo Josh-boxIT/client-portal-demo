@@ -624,7 +624,12 @@ export interface ActivityItem {
 
 // ─── Backlog Intelligence (staff-only scanner projection) ──────────────────────
 
-export type BacklogPriorityBand = 'ACT_NOW' | 'REVIEW_TODAY' | 'MONITOR' | 'NO_ACTION';
+export type BacklogPriorityBand =
+  | 'ACT_NOW'
+  | 'REVIEW_TODAY'
+  | 'REVIEW_THIS_WEEK'
+  | 'MONITOR'
+  | 'NO_ACTION';
 export type BacklogClusterDisposition = 'PRIMARY' | 'BUNDLE' | 'SINGLETON';
 export type BacklogPlannedWorkState = 'CURRENT' | 'PLAN_STALE' | 'NOT_APPLICABLE';
 export type BacklogConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -667,10 +672,16 @@ export interface BacklogItemDisplay {
   nextCheckpoint?: string;
   waitingParty?: string;
   followUpDueAt?: string;
+  accountName?: string;
+  assignedResource?: string;
+  ticketStatus?: string;
+  auditVerifiedOpen?: boolean;
 }
 
 export interface BacklogIntelligenceItem {
   itemId: string;
+  tenantId: string;
+  requesterPersonaId?: string;
   itemType: 'CLUSTER' | 'TICKET';
   primaryTicketExternalId: string;
   clusterDisposition: BacklogClusterDisposition;
@@ -705,7 +716,14 @@ export interface BacklogIntelligenceSnapshot {
     scannedTicketCount: number;
     eligibleTicketCount: number;
     flaggedTicketCount: number;
-    countsByPriorityBand: Record<'ACT_NOW' | 'REVIEW_TODAY' | 'MONITOR', number>;
+    countsByPriorityBand: Record<
+      'ACT_NOW' | 'REVIEW_TODAY' | 'REVIEW_THIS_WEEK' | 'MONITOR',
+      number
+    >;
+    unassignedCount?: number;
+    bundledChildCount?: number;
+    syncStaleTicketCount?: number;
+    displayedItemCount?: number;
   };
   items: BacklogIntelligenceItem[];
   topPatterns: Array<{
@@ -893,8 +911,14 @@ export interface AssistantService {
   ): Promise<void>;
 }
 
+export interface BacklogIntelligenceQuery {
+  tenantId?: string;
+  viewerAccess?: 'staff' | 'client-admin' | 'client-user';
+  personaId?: string;
+}
+
 export interface BacklogIntelligenceService {
-  getSnapshot(): Promise<BacklogIntelligenceSnapshot>;
+  getSnapshot(query?: BacklogIntelligenceQuery): Promise<BacklogIntelligenceSnapshot>;
 }
 
 export interface SalesOpportunityService {

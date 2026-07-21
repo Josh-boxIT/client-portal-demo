@@ -91,7 +91,7 @@ class NewDataCaptureProvider implements AssistantModelProvider {
       domain: 'queue-attention', limit: 50,
     });
     const queueSearch = await input.executeTool('search_portal', {
-      query: 'DEMO-4001', domains: ['queue-attention'], limit: 50,
+      query: '822871', domains: ['queue-attention'], limit: 50,
     });
     this.calls.push({ churn, queueAttention, queueSearch });
     const accessedRecords = [...churn, ...queueAttention, ...queueSearch];
@@ -304,16 +304,18 @@ describe('permission-aware assistant API', () => {
     ]);
 
     const queueRecords = provider.calls[0].queueAttention;
-    expect(queueRecords).toHaveLength(12);
+    expect(queueRecords).toHaveLength(28);
     expect(queueRecords.find((record) => record.recordId === 'overview')?.data.summary).toMatchObject({
-      scannedTicketCount: 10,
-      flaggedTicketCount: 4,
+      scannedTicketCount: 106,
+      flaggedTicketCount: 83,
+      unassignedCount: 64,
+      syncStaleTicketCount: 8,
     });
-    expect(queueRecords.filter((record) => record.recordId.startsWith('item:'))).toHaveLength(4);
+    expect(queueRecords.filter((record) => record.recordId.startsWith('item:'))).toHaveLength(20);
     expect(queueRecords.filter((record) => record.recordId.startsWith('pattern:'))).toHaveLength(3);
     expect(queueRecords.filter((record) => record.recordId.startsWith('agenda:'))).toHaveLength(4);
     expect(provider.calls[0].queueSearch.some(
-      (record) => record.data.primaryTicketExternalId === 'DEMO-4001',
+      (record) => record.data.primaryTicketExternalId === '822871',
     )).toBe(true);
     expect(JSON.stringify(queueRecords)).not.toMatch(/"(?:internal|messages|notes)"/);
   });
