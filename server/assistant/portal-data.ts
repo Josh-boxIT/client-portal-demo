@@ -257,7 +257,7 @@ export async function buildPortalRecords(
     push('customer-churn', [{ id: 'assessment', ...churnAssessment }], () => 'Customer churn assessment');
   }
   push('metrics', seed.metricSeries, (value) => String(value.label));
-  if (scope.isStaff) {
+  if (scope.isAdmin) {
     const snapshot = backlogIntelligenceSnapshot;
     push('queue-attention', [{
       id: 'overview',

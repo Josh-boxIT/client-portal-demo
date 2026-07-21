@@ -55,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Queue Attention',
         href: '/queue-attention',
         icon: <ListChecks className="h-4 w-4" />,
+        adminOnly: true,
       },
       {
         label: 'Sales Opportunities',
