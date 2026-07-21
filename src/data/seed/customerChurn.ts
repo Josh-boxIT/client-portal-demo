@@ -1,3 +1,26 @@
+export type ChurnMetricKey =
+  | 'accountAgeYears'
+  | 'creditLimitUsagePercent'
+  | 'daysPastDue'
+  | 'onTimePaymentRatio'
+  | 'slaConformancePercent'
+  | 'openCases'
+  | 'closedCases'
+  | 'repeatCases';
+
+export type ChurnDataSource = 'connectwise' | 'demo';
+
+export const demoChurnMetricSources: Record<ChurnMetricKey, ChurnDataSource> = {
+  accountAgeYears: 'demo',
+  creditLimitUsagePercent: 'demo',
+  daysPastDue: 'demo',
+  onTimePaymentRatio: 'demo',
+  slaConformancePercent: 'demo',
+  openCases: 'demo',
+  closedCases: 'demo',
+  repeatCases: 'demo',
+};
+
 export interface ChurnAssessment {
   customerId: string;
   assessedAt: string;
@@ -13,6 +36,11 @@ export interface ChurnAssessment {
   openCases: number;
   closedCases: number;
   repeatCases: number;
+  metricSources: Record<ChurnMetricKey, ChurnDataSource>;
+  source: 'demo' | 'mixed' | 'connectwise';
+  fingerprint?: string;
+  narrativeGeneratedAt?: string;
+  narrativeModel?: string;
 }
 
 const ASSESSED_AT = '2026-07-20';
@@ -34,6 +62,8 @@ export const churnAssessments: Record<string, ChurnAssessment> = {
     openCases: 5,
     closedCases: 12,
     repeatCases: 3,
+    metricSources: { ...demoChurnMetricSources },
+    source: 'demo',
   },
   cedarvine: {
     customerId: 'cedarvine',
@@ -51,6 +81,8 @@ export const churnAssessments: Record<string, ChurnAssessment> = {
     openCases: 3,
     closedCases: 16,
     repeatCases: 1,
+    metricSources: { ...demoChurnMetricSources },
+    source: 'demo',
   },
   northwind: {
     customerId: 'northwind',
@@ -68,6 +100,8 @@ export const churnAssessments: Record<string, ChurnAssessment> = {
     openCases: 7,
     closedCases: 9,
     repeatCases: 4,
+    metricSources: { ...demoChurnMetricSources },
+    source: 'demo',
   },
 };
 

@@ -1,38 +1,15 @@
-import type { Identity } from '@/store/auth';
-import type { TenantTheme } from '@/theme/tenants';
-import { getAccessibleTenants } from '@/lib/accessibleTenants';
 import {
   churnAssessments,
   getChurnAssessment,
-  type ChurnAssessment,
 } from '@/data/seed/customerChurn';
 
-export { churnAssessments, getChurnAssessment, type ChurnAssessment };
+export { churnAssessments, getChurnAssessment };
 
 export interface ChurnRiskTone {
   label: string;
   badgeClass: string;
   scoreClass: string;
   ring: string;
-}
-
-export interface CustomerChurnRow {
-  customer: TenantTheme;
-  assessment: ChurnAssessment;
-}
-
-export function getAccessibleChurnRows(
-  identity: Identity | null,
-  accessibleClientIds: string[],
-  tenants: TenantTheme[],
-): CustomerChurnRow[] {
-  return getAccessibleTenants(identity, accessibleClientIds, tenants)
-    .map((customer) => {
-      const assessment = getChurnAssessment(customer.id);
-      return assessment ? { customer, assessment } : null;
-    })
-    .filter((row): row is CustomerChurnRow => row !== null)
-    .sort((a, b) => b.assessment.score - a.assessment.score);
 }
 
 export function getRiskTone(score: number): ChurnRiskTone {
@@ -75,4 +52,8 @@ export function formatAssessmentDate(value: string): string {
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00Z`));
+}
+
+export function churnSourceLabel(source: 'connectwise' | 'demo'): string {
+  return source === 'connectwise' ? 'Live CW' : 'Demo';
 }

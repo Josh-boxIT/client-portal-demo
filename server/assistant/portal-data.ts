@@ -7,6 +7,7 @@ import { backlogIntelligenceSnapshot } from '@/data/seed/backlogIntelligence';
 import { getChurnAssessment } from '@/data/seed/customerChurn';
 import type { Ticket } from '@/services/types';
 import type { VendorDataService } from '../integrations/vendor-data';
+import type { ChurnService } from '../churn/service';
 
 export const PORTAL_DOMAINS = [
   'actions',
@@ -46,6 +47,7 @@ export interface PortalAccessScope {
   userId: string;
   tenantId: string;
   isStaff: boolean;
+  isAdmin: boolean;
   clientRole: 'client-admin' | 'client-user';
   personaId?: string;
 }
@@ -123,6 +125,7 @@ export async function resolvePortalAccess(
 ): Promise<PortalAccessScope | null> {
   if (!configStore.tenantById(tenantId)) return null;
   const isStaff = identity.role === 'admin' || identity.role === 'editor';
+  const isAdmin = identity.role === 'admin';
   if (!isStaff) {
     const grants = await adminUsersRepo(db).getClientAccess(identity.id);
     if (!grants.includes(tenantId)) return null;
@@ -135,6 +138,7 @@ export async function resolvePortalAccess(
     userId: identity.id,
     tenantId,
     isStaff,
+    isAdmin,
     clientRole: isStaff ? 'client-admin' : persona?.role ?? 'client-user',
     personaId: persona?.id,
   };
@@ -148,6 +152,7 @@ export async function resolvePortalAccessScopes(
   identity: AdminIdentity,
 ): Promise<PortalAccessScope[]> {
   const isStaff = identity.role === 'admin' || identity.role === 'editor';
+  const isAdmin = identity.role === 'admin';
   const tenantIds = isStaff
     ? configStore.tenants().map((tenant) => tenant.id)
     : await adminUsersRepo(db).getClientAccess(identity.id);
@@ -161,6 +166,7 @@ export async function resolvePortalAccessScopes(
       userId: identity.id,
       tenantId,
       isStaff,
+      isAdmin,
       clientRole: isStaff ? 'client-admin' : persona?.role ?? 'client-user',
       personaId: persona?.id,
     }];
@@ -205,6 +211,7 @@ export async function buildPortalRecords(
   configStore: ConfigStore,
   scope: PortalAccessScope,
   vendorData?: VendorDataService,
+  churn?: ChurnService,
 ): Promise<PortalRecord[]> {
   const seed = getSeed(scope.tenantId);
   const tenant = configStore.tenantById(scope.tenantId)!;
@@ -241,8 +248,12 @@ export async function buildPortalRecords(
     push('budgets', seed.budgetLines, (value) => `${String(value.category)} · ${String(value.period)}`);
   }
   push('risks', seed.risks, (value) => String(value.title));
-  const churnAssessment = getChurnAssessment(scope.tenantId);
-  if (churnAssessment) {
+  const churnAssessment = scope.isAdmin
+    ? churn
+      ? await churn.get(scope.tenantId)
+      : getChurnAssessment(scope.tenantId)
+    : null;
+  if (scope.isAdmin && churnAssessment) {
     push('customer-churn', [{ id: 'assessment', ...churnAssessment }], () => 'Customer churn assessment');
   }
   push('metrics', seed.metricSeries, (value) => String(value.label));

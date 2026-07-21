@@ -13,9 +13,24 @@ import {
   isConnectWiseAgreementActive,
   isConnectWiseAgreementAdditionActive,
   normalizeConnectWiseAgreement,
+  normalizeConnectWiseChurnInvoice,
 } from './connectwise';
 import { ninjaOrganizationFilter, NinjaOneClient } from './ninjaone';
 import { CONNECTWISE_CACHE_REFRESH_MS } from './vendor-data';
+import type { ChurnNarrativeInput, ChurnNarrativeProvider } from '../churn/provider';
+
+class FakeChurnProvider implements ChurnNarrativeProvider {
+  readonly modelName = 'fake-churn-model';
+  calls: ChurnNarrativeInput[] = [];
+
+  async generate(input: ChurnNarrativeInput) {
+    this.calls.push(input);
+    return {
+      assessment: `Generated assessment ${this.calls.length} for score ${input.assessment.score}.`,
+      suggestedActions: 'Review the live and fallback signals with the account owner.',
+    };
+  }
+}
 
 const env: ServerEnv = {
   port: 8787,
@@ -52,6 +67,7 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
       status: { id: 1, name: 'Active' }, city: 'Seattle', state: 'WA',
       phoneNumber: '+1 206 555 0100', website: 'https://brightwater.example',
       market: { id: 4, name: 'Logistics' }, deletedFlag: false,
+      dateAcquired: '2020-01-15T00:00:00Z', creditLimit: 10000,
     });
     if (url.pathname.endsWith('/company/companies/43')) return json({
       id: 43, identifier: 'ACME', name: 'Acme Manufacturing',
@@ -110,6 +126,7 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
       owner: { id: 3, name: 'Alex Engineer' },
       initialDescription: 'The VPN stopped connecting this morning.',
       closedFlag: false,
+      isInSla: true,
       _info: { dateEntered: '2026-07-21T08:00:00Z', lastUpdated: '2026-07-21T10:30:00Z' },
     }]);
     if (/\/service\/tickets\/1200\/allNotes$/.test(url.pathname)) return json([{
@@ -146,6 +163,13 @@ function mockVendorFetch(requests: URL[]): typeof fetch {
     if (/\/service\/tickets\/1200\/documents$/.test(url.pathname)) return json({ error: 'forbidden' }, 403);
     if (url.pathname.endsWith('/system/documents')) return json([{ id: 1300, title: 'VPN error', fileName: 'vpn-error.png', imageFlag: true }]);
     if (/\/system\/documents\/1300\/download$/.test(url.pathname)) return new Response(new Uint8Array([137, 80, 78, 71]), { status: 200, headers: { 'content-type': 'image/png' } });
+    if (url.pathname.endsWith('/finance/invoices')) return json([
+      { id: 1600, company: { id: 42 }, date: '2026-06-01T00:00:00Z', dueDate: '2026-06-30T00:00:00Z', total: 2000, balance: 500 },
+      { id: 1601, company: { id: 42 }, date: '2026-05-01T00:00:00Z', dueDate: '2026-05-31T00:00:00Z', total: 1000, balance: 0 },
+    ]);
+    if (/\/finance\/invoices\/1601\/payments$/.test(url.pathname)) return json([
+      { id: 1700, invoice: { id: 1601 }, amount: 1000, paymentDate: '2026-05-20T00:00:00Z' },
+    ]);
     if (url.pathname.endsWith('/finance/agreements')) return json([
       {
         id: 300,
@@ -289,6 +313,21 @@ describe('vendor API request construction', () => {
     }
   });
 
+  it('applies demo Net 30 terms when classifying invoice payments', () => {
+    const invoice = normalizeConnectWiseChurnInvoice({
+      id: 45051,
+      date: '2026-04-30T00:00:00Z',
+      dueDate: '2026-04-30T00:00:00Z',
+      total: 1805.4,
+      balance: 0,
+    }, [{ paymentDate: '2026-05-29T07:00:00Z' }], new Date('2026-07-21T12:00:00Z'));
+
+    expect(invoice).toMatchObject({
+      dueDate: '2026-05-30T00:00:00.000Z',
+      paidOnTime: true,
+    });
+  });
+
   it('uses documented ConnectWise slash-reference conditions and GET-only reads', async () => {
     const requests: URL[] = [];
     const client = new ConnectWiseClient(env.connectWise!, mockVendorFetch(requests));
@@ -301,11 +340,11 @@ describe('vendor API request construction', () => {
     expect(requests.map((url) => url.searchParams.get('conditions'))).toEqual([
       'company/id = 42',
       'company/id = 42 AND activeFlag = true',
-      'company/id = 42 AND dateEntered >= [2025-07-21T12:00:00Z] AND id = 1200',
+      'company/id = 42 AND (dateEntered >= [2025-07-21T12:00:00Z] OR closedFlag = false) AND id = 1200',
       'chargeToType = "ServiceTicket" AND chargeToId = 1200',
     ]);
     expect(connectWiseTicketConditions(42, undefined, now)).toBe(
-      'company/id = 42 AND dateEntered >= [2025-07-21T12:00:00Z]',
+      'company/id = 42 AND (dateEntered >= [2025-07-21T12:00:00Z] OR closedFlag = false)',
     );
     expect(connectWiseTimeEntryConditions(1200)).toBe(
       'chargeToType = "ServiceTicket" AND chargeToId = 1200',
@@ -342,12 +381,14 @@ describe('mapped vendor-backed portal routes', () => {
   let raw: DbClient;
   let requests: URL[];
   let token: string;
+  let churnProvider: FakeChurnProvider;
 
   beforeEach(async () => {
     const opened = openTestDb();
     raw = opened.raw;
     requests = [];
-    app = await buildApp({ db: opened.db, env, logger: false, vendorFetch: mockVendorFetch(requests), salesOpportunityProvider: null });
+    churnProvider = new FakeChurnProvider();
+    app = await buildApp({ db: opened.db, env, logger: false, vendorFetch: mockVendorFetch(requests), salesOpportunityProvider: null, churnProvider });
     const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'alex.morgan@boxit.demo' } });
     token = login.json().token;
     const mapped = await app.inject({
@@ -454,6 +495,50 @@ describe('mapped vendor-backed portal routes', () => {
     });
     expect(requests.filter((url) => url.pathname.endsWith('/finance/agreements'))).toHaveLength(1);
     expect(requests.some((url) => /\/finance\/agreements\/399\/additions$/.test(url.pathname))).toBe(false);
+
+    const churn = await app.inject({ method: 'GET', url: '/api/customer-churn/brightwater', headers: headers() });
+    expect(churn.statusCode).toBe(200);
+    expect(churn.json()).toMatchObject({
+      customerId: 'brightwater',
+      source: 'mixed',
+      narrativeModel: 'fake-churn-model',
+      metricSources: {
+        accountAgeYears: 'connectwise',
+        creditLimitUsagePercent: 'connectwise',
+        daysPastDue: 'connectwise',
+        onTimePaymentRatio: 'connectwise',
+        slaConformancePercent: 'connectwise',
+        openCases: 'connectwise',
+        closedCases: 'connectwise',
+        repeatCases: 'demo',
+      },
+    });
+    const regenerated = await app.inject({ method: 'POST', url: '/api/customer-churn/brightwater/regenerate', headers: headers() });
+    expect(regenerated.statusCode).toBe(200);
+    expect(regenerated.json().score).toBe(churn.json().score);
+    expect(churnProvider.calls).toHaveLength(2);
+    expect(regenerated.json().assessment).toContain('Generated assessment 2');
+  });
+
+  it('restricts churn data to the exact admin role', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/admin/users',
+      headers: headers(),
+      payload: { email: 'editor@boxit.demo', name: 'Editor', role: 'editor' },
+    });
+    expect(created.statusCode).toBe(201);
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'editor@boxit.demo' },
+    });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/customer-churn/brightwater',
+      headers: { authorization: `Bearer ${login.json().token}`, 'x-tenant-id': 'brightwater' },
+    });
+    expect(response.statusCode).toBe(403);
   });
 
   it('rejects all ticket mutations for a mapped client', async () => {

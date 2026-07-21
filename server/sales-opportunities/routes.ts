@@ -4,15 +4,16 @@ import type {
   ProductCatalogItem,
   SalesOpportunityEvidence,
   SalesOpportunityFinding,
+  SalesOpportunityAnalysis,
 } from '@/services/types';
 import type { ConnectWiseAgreement } from '@/services/types';
-import { getChurnAssessment } from '@/data/seed/customerChurn';
 import { requireRole } from '../admin/require-role';
 import { auditRepo, productCatalogDto, productCatalogRepo, salesOpportunityRepo } from '../db/repositories';
 import { ApiError, BadRequestError, NotFoundError } from '../framework/errors';
 import { resolvePortalAccess, ticketsForScope } from '../assistant/portal-data';
 import type { OpportunityModelSuggestion, SalesOpportunityModelProvider } from './provider';
 import type { VendorDataService } from '../integrations/vendor-data';
+import type { ChurnService } from '../churn/service';
 
 function tenantHeader(req: FastifyRequest): string {
   const raw = req.headers['x-tenant-id'];
@@ -44,10 +45,24 @@ function valueRange(product: ProductCatalogItem | undefined, agreements: Connect
   };
 }
 
+function visibleAnalysis(
+  analysis: SalesOpportunityAnalysis | null,
+  role: 'admin' | 'editor' | 'viewer',
+): SalesOpportunityAnalysis | null {
+  if (!analysis || role === 'admin') return analysis;
+  return {
+    ...analysis,
+    sourceSummary: { ...analysis.sourceSummary, churnScore: null },
+    findings: analysis.findings.filter((finding) =>
+      !finding.evidence.some((item) => item.sourceType === 'churn')),
+  };
+}
+
 export function registerSalesOpportunityRoutes(
   app: FastifyInstance,
   provider: SalesOpportunityModelProvider | null,
   vendorData: VendorDataService,
+  churnService: ChurnService,
 ): void {
   const staffOnly = { preHandler: requireRole('admin', 'editor') };
 
@@ -61,12 +76,13 @@ export function registerSalesOpportunityRoutes(
 
   async function inputFor(req: FastifyRequest) {
     const { tenantId, scope, tenant } = await accessibleTenantFor(req);
-    const [ticketResult, agreementResult, rows] = await Promise.all([
+    const [ticketResult, agreementResult, rows, churn] = await Promise.all([
       tenant.connectWiseCompanyId !== null
         ? vendorData.tickets(tenant)
         : ticketsForScope(app.db, scope).then((data) => ({ data })),
       vendorData.agreements(tenant),
       productCatalogRepo(app.db).list(),
+      req.adminIdentity!.role === 'admin' ? churnService.get(tenantId) : Promise.resolve(null),
     ]);
     return {
       tenantId,
@@ -74,7 +90,7 @@ export function registerSalesOpportunityRoutes(
       tickets: ticketResult.data,
       products: rows.map(productCatalogDto).filter((product) => product.enabled),
       agreements: agreementResult.data,
-      churn: getChurnAssessment(tenantId),
+      churn,
       scope,
     };
   }
@@ -102,7 +118,10 @@ export function registerSalesOpportunityRoutes(
 
   app.get('/api/sales-opportunities/latest', staffOnly, async (req) => {
     const input = await inputFor(req);
-    return salesOpportunityRepo(app.db).latest(input.tenantId);
+    return visibleAnalysis(
+      await salesOpportunityRepo(app.db).latest(input.tenantId),
+      req.adminIdentity!.role,
+    );
   });
 
   app.delete('/api/sales-opportunities/latest', staffOnly, async (req, reply) => {
@@ -171,7 +190,10 @@ export function registerSalesOpportunityRoutes(
   app.post('/api/sales-opportunities/:fingerprint/send-to-connectwise', staffOnly, async (req) => {
     const input = await inputFor(req);
     const requested = (req.params as { fingerprint: string }).fingerprint;
-    const latest = await salesOpportunityRepo(app.db).latest(input.tenantId);
+    const latest = visibleAnalysis(
+      await salesOpportunityRepo(app.db).latest(input.tenantId),
+      req.adminIdentity!.role,
+    );
     const finding = latest?.findings.find((item) => item.fingerprint === requested);
     if (!finding) throw new NotFoundError('Opportunity not found in the latest analysis');
     const sentAt = new Date().toISOString();

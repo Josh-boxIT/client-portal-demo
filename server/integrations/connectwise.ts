@@ -9,6 +9,11 @@ import type {
   TicketAttachment,
 } from '@/services/types';
 import type { ServerEnv } from '../config/env';
+import type {
+  ConnectWiseChurnCompany,
+  ConnectWiseChurnInvoice,
+} from '../churn/scoring';
+import { CHURN_INVOICE_TERMS_DAYS } from '../churn/scoring';
 
 type JsonObject = Record<string, unknown>;
 type FetchLike = typeof fetch;
@@ -76,10 +81,15 @@ export function connectWiseTicketCutoff(now = new Date()): string {
 export function connectWiseTicketConditions(companyId: number, id?: number, now = new Date()): string {
   const conditions = [
     connectWiseCompanyCondition(companyId),
-    `dateEntered >= [${connectWiseTicketCutoff(now)}]`,
+    `(dateEntered >= [${connectWiseTicketCutoff(now)}] OR closedFlag = false)`,
   ];
   if (id !== undefined) conditions.push(`id = ${id}`);
   return conditions.join(' AND ');
+}
+
+export function connectWiseInvoiceConditions(companyId: number, now = new Date()): string {
+  const cutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return `${connectWiseCompanyCondition(companyId)} AND (date >= [${cutoff}] OR balance > 0)`;
 }
 
 /** Time entries are shared across charge types, so constrain both type and ticket id. */
@@ -176,6 +186,14 @@ export class ConnectWiseClient {
     return this.list(`/finance/agreements/${agreementId}/additions`);
   }
 
+  async listInvoices(companyId: number, now = new Date()): Promise<JsonObject[]> {
+    return this.list('/finance/invoices', connectWiseInvoiceConditions(companyId, now));
+  }
+
+  async listInvoicePayments(invoiceId: number): Promise<JsonObject[]> {
+    return this.list(`/finance/invoices/${invoiceId}/payments`);
+  }
+
   private async list(
     path: string,
     conditions?: string,
@@ -230,6 +248,43 @@ export function normalizeConnectWiseCompany(row: JsonObject): ConnectWiseCompany
     phoneNumber: text(row.phoneNumber),
     website: text(row.website),
     market: referenceName(row.market),
+  };
+}
+
+export function normalizeConnectWiseChurnCompany(row: JsonObject): ConnectWiseChurnCompany | null {
+  const id = number(row.id);
+  if (id === undefined) return null;
+  const acquired = timestamp(row.dateAcquired);
+  const creditLimit = number(row.creditLimit);
+  return {
+    id: `cw-company-${id}`,
+    ...(acquired !== undefined ? { dateAcquired: new Date(acquired).toISOString() } : {}),
+    ...(creditLimit !== undefined ? { creditLimit } : {}),
+  };
+}
+
+export function normalizeConnectWiseChurnInvoice(
+  row: JsonObject,
+  paymentRows: JsonObject[],
+  now = new Date(),
+): ConnectWiseChurnInvoice | null {
+  const id = number(row.id);
+  const invoiceDate = timestamp(row.date);
+  if (id === undefined || invoiceDate === undefined) return null;
+  const dueDate = invoiceDate + CHURN_INVOICE_TERMS_DAYS * 86_400_000;
+  const balance = number(row.balance) ?? 0;
+  const paymentDates = paymentRows.map((payment) => timestamp(payment.paymentDate))
+    .filter((value): value is number => value !== undefined);
+  let paidOnTime: boolean | undefined;
+  if (dueDate <= now.getTime() && balance > 0) paidOnTime = false;
+  else if (balance <= 0 && paymentDates.length > 0) paidOnTime = Math.max(...paymentDates) <= dueDate;
+  return {
+    id: `cw-invoice-${id}`,
+    date: new Date(invoiceDate).toISOString(),
+    dueDate: new Date(dueDate).toISOString(),
+    balance,
+    total: number(row.total) ?? 0,
+    ...(paidOnTime !== undefined ? { paidOnTime } : {}),
   };
 }
 
@@ -439,6 +494,7 @@ export function normalizeConnectWiseTicket(
     updatedAt: infoDate(row._info, row.dateResolved),
     category: referenceName(row.type) || referenceName(row.board) || 'Support',
     messages: [...initial, ...notes],
+    ...(typeof row.isInSla === 'boolean' ? { isInSla: row.isInSla } : {}),
     ...(attachments.length ? { attachments } : {}),
   };
 }

@@ -5,6 +5,7 @@ import { assistantRepo } from '../db/repositories';
 import { BadRequestError, NotFoundError } from '../framework/errors';
 import type { AssistantModelProvider } from './provider';
 import type { VendorDataService } from '../integrations/vendor-data';
+import type { ChurnService } from '../churn/service';
 import { isPortalDomain } from './provider';
 import {
   buildPortalRecords,
@@ -17,6 +18,7 @@ import {
 interface RegisterAssistantRoutesOptions {
   provider: AssistantModelProvider | null;
   vendorData?: VendorDataService;
+  churn?: ChurnService;
 }
 
 function tenantHeader(req: FastifyRequest): string {
@@ -66,6 +68,12 @@ function streamCompleted(reply: { raw: NodeJS.WritableStream }, message: Assista
 }
 
 const NOT_FOUND_ANSWER = "I couldn't find that in the portal data available to you.";
+const RESTRICTED_CHURN_ANSWER = 'This historical churn response is available only to administrators.';
+
+function visibleMessage(message: AssistantMessage, isAdmin: boolean): AssistantMessage {
+  if (isAdmin || !message.citations.some((item) => item.recordType === 'customer-churn')) return message;
+  return { ...message, content: RESTRICTED_CHURN_ANSWER, citations: [] };
+}
 
 export function registerAssistantRoutes(app: FastifyInstance, options: RegisterAssistantRoutesOptions): void {
   const repo = assistantRepo(app.db);
@@ -98,7 +106,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
     const conversationId = (req.params as { id: string }).id;
     const messages = await repo.listMessages(scope.userId, scope.tenantId, conversationId);
     if (!messages) throw new NotFoundError('Conversation not found');
-    return messages;
+    return messages.map((message) => visibleMessage(message, scope.isAdmin));
   });
 
   app.delete('/api/assistant/conversations/:id', async (req, reply) => {
@@ -146,7 +154,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
     try {
       const existing = await repo.getCompletedTurn(scope.userId, scope.tenantId, conversationId, requestId);
       if (existing) {
-        streamCompleted(reply, existing);
+        streamCompleted(reply, visibleMessage(existing, scope.isAdmin));
         reply.raw.end();
         return;
       }
@@ -161,7 +169,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
       accessibleScopes.sort((left, right) =>
         Number(right.tenantId === scope.tenantId) - Number(left.tenantId === scope.tenantId));
       const records = (await Promise.all(accessibleScopes.map((accessibleScope) =>
-        buildPortalRecords(app.db, app.configStore, accessibleScope, options.vendorData))))
+        buildPortalRecords(app.db, app.configStore, accessibleScope, options.vendorData, options.churn))))
         .flat()
         // Queue Attention is an MSP-wide snapshot, so include it once rather
         // than duplicating the same records for every accessible client.
@@ -169,7 +177,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
       const recordBySource = new Map(records.map((record) => [record.sourceId, record]));
 
       const result = await options.provider.generate({
-        messages: [...messages, {
+        messages: [...messages.map((message) => visibleMessage(message, scope.isAdmin)), {
           id: 'pending',
           conversationId,
           role: 'user',
@@ -236,7 +244,7 @@ export function registerAssistantRoutes(app: FastifyInstance, options: RegisterA
           requestId,
         );
         if (completed) {
-          streamCompleted(reply, completed);
+          streamCompleted(reply, visibleMessage(completed, scope.isAdmin));
           return;
         }
         const message = error instanceof Error && error.message.includes('lookup limit')

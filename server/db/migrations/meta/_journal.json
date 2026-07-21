@@ -43,6 +43,13 @@
       "when": 1784645658838,
       "tag": "0005_dark_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784650646230,
+      "tag": "0006_thankful_proteus",
+      "breakpoints": true
     }
   ]
 }

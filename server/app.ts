@@ -14,6 +14,9 @@ import { registerAssistantRoutes } from './assistant/routes';
 import { OpenAISalesOpportunityProvider, type SalesOpportunityModelProvider } from './sales-opportunities/provider';
 import { registerSalesOpportunityRoutes } from './sales-opportunities/routes';
 import { VendorDataService } from './integrations/vendor-data';
+import { OpenAIChurnNarrativeProvider, type ChurnNarrativeProvider } from './churn/provider';
+import { ChurnService } from './churn/service';
+import { registerChurnRoutes } from './churn/routes';
 
 export interface BuildAppOptions {
   env?: ServerEnv;
@@ -22,6 +25,7 @@ export interface BuildAppOptions {
   assistantProvider?: AssistantModelProvider | null;
   salesOpportunityProvider?: SalesOpportunityModelProvider | null;
   vendorFetch?: typeof fetch;
+  churnProvider?: ChurnNarrativeProvider | null;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -42,22 +46,29 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   const authProvider = new FakeAdminAuthProvider(db);
   const vendorData = new VendorDataService(env, db, options.vendorFetch);
+  const churnProvider = Object.prototype.hasOwnProperty.call(options, 'churnProvider')
+    ? options.churnProvider ?? null
+    : env.openAiApiKey
+      ? new OpenAIChurnNarrativeProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
+      : null;
+  const churn = new ChurnService(db, configStore, vendorData, churnProvider);
   registerSessionAuth(app, authProvider);
   registerAuthRoutes(app, { authProvider, db });
   registerAdminRoutes(app, configStore, vendorData);
   registerApiRoutes(app, vendorData);
+  registerChurnRoutes(app, churn);
   const assistantProvider = Object.prototype.hasOwnProperty.call(options, 'assistantProvider')
     ? options.assistantProvider ?? null
     : env.openAiApiKey
       ? new OpenAIAssistantProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
       : null;
-  registerAssistantRoutes(app, { provider: assistantProvider, vendorData });
+  registerAssistantRoutes(app, { provider: assistantProvider, vendorData, churn });
   const salesOpportunityProvider = Object.prototype.hasOwnProperty.call(options, 'salesOpportunityProvider')
     ? options.salesOpportunityProvider ?? null
     : env.openAiApiKey
       ? new OpenAISalesOpportunityProvider(env.openAiApiKey, env.openAiModel, env.openAiReasoningEffort)
       : null;
-  registerSalesOpportunityRoutes(app, salesOpportunityProvider, vendorData);
+  registerSalesOpportunityRoutes(app, salesOpportunityProvider, vendorData, churn);
 
   await vendorData.start(
     () => configStore.tenants(),

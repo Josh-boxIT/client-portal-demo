@@ -5,6 +5,7 @@ export { actionDefRepo } from './action-defs';
 export { demoTicketMutationRepo, demoTicketRepo, formSubmissionRepo } from './demo-data';
 export { assistantRepo } from './assistant';
 export { connectWiseCacheRepo } from './connectwise-cache';
+export { churnNarrativeRepo } from './churn';
 export {
   normalizeProductName,
   productCatalogDto,

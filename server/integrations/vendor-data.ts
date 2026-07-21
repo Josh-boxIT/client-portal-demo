@@ -5,11 +5,19 @@ import type { ServerEnv } from '../config/env';
 import type { AppDb } from '../db/client';
 import { connectWiseCacheRepo } from '../db/repositories';
 import type { ConnectWiseCacheResource, Tenant } from '../db/schema';
+import type {
+  ConnectWiseChurnCompany,
+  ConnectWiseChurnInputs,
+  ConnectWiseChurnInvoice,
+} from '../churn/scoring';
+import { CHURN_INVOICE_TERMS_DAYS } from '../churn/scoring';
 import {
   ConnectWiseClient,
   type ConnectWiseCompanySummary,
   isConnectWiseAgreementActive,
   normalizeConnectWiseAgreement,
+  normalizeConnectWiseChurnCompany,
+  normalizeConnectWiseChurnInvoice,
   normalizeConnectWiseCompany,
   normalizeConnectWiseConfiguration,
   normalizeConnectWiseContact,
@@ -116,6 +124,8 @@ export class VendorDataService {
     };
 
     await Promise.all([
+      refresh('company', () => this.loadChurnCompany(tenant)),
+      refresh('invoices', () => this.loadChurnInvoices(tenant)),
       refresh('people', () => this.loadPeople(tenant)),
       refresh('devices', () => this.loadDevices(tenant)),
       refresh('tickets', () => this.loadTickets(tenant)),
@@ -179,6 +189,49 @@ export class VendorDataService {
     if (!this.connectWise) return null;
     const row = await this.connectWise.getCompany(id);
     return row ? normalizeConnectWiseCompany(row) : null;
+  }
+
+  async churnInputs(tenant: Tenant): Promise<ConnectWiseChurnInputs> {
+    if (tenant.connectWiseCompanyId === null) return {};
+    const [companies, invoices, tickets] = await Promise.all([
+      this.cached<ConnectWiseChurnCompany>(tenant.id, 'company'),
+      this.cached<ConnectWiseChurnInvoice>(tenant.id, 'invoices'),
+      this.cached<Ticket>(tenant.id, 'tickets'),
+    ]);
+    return { company: companies?.[0], invoices, tickets };
+  }
+
+  private async loadChurnCompany(tenant: Tenant): Promise<ConnectWiseChurnCompany[]> {
+    const row = await this.connectWise!.getCompany(tenant.connectWiseCompanyId!);
+    const company = row ? normalizeConnectWiseChurnCompany(row) : null;
+    return company ? [company] : [];
+  }
+
+  private async loadChurnInvoices(tenant: Tenant): Promise<ConnectWiseChurnInvoice[]> {
+    const now = new Date();
+    const rows = await this.connectWise!.listInvoices(tenant.connectWiseCompanyId!, now);
+    const cutoff = now.getTime() - 90 * 86_400_000;
+    const results: ConnectWiseChurnInvoice[] = [];
+    for (let index = 0; index < rows.length; index += 5) {
+      const batch = rows.slice(index, index + 5);
+      const normalized = await Promise.all(batch.map(async (row) => {
+        const id = typeof row.id === 'number' ? row.id : undefined;
+        const invoiceDate = typeof row.date === 'string' ? Date.parse(row.date) : NaN;
+        const effectiveDueDate = Number.isFinite(invoiceDate)
+          ? invoiceDate + CHURN_INVOICE_TERMS_DAYS * 86_400_000
+          : NaN;
+        const balance = typeof row.balance === 'number' ? row.balance : 0;
+        const shouldLoadPayments = id !== undefined && balance <= 0
+          && Number.isFinite(invoiceDate) && invoiceDate >= cutoff
+          && Number.isFinite(effectiveDueDate) && effectiveDueDate <= now.getTime();
+        const payments = shouldLoadPayments
+          ? await this.connectWise!.listInvoicePayments(id).catch(() => [])
+          : [];
+        return normalizeConnectWiseChurnInvoice(row, payments, now);
+      }));
+      results.push(...normalized.filter((invoice): invoice is ConnectWiseChurnInvoice => Boolean(invoice)));
+    }
+    return results;
   }
 
   async people(tenant: Tenant): Promise<VendorResult<Person[]>> {
