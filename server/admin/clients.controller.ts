@@ -4,6 +4,7 @@ import type { Tenant, TenantThemeTokens } from '../db/schema';
 import type { ConfigStore } from '../framework/config-store';
 import type { ConnectWiseCompanySummary } from '../integrations/connectwise';
 import { ApiError, BadRequestError, NotFoundError } from '../framework/errors';
+import { SUPPORT_PHONE } from '../support';
 
 export interface ClientDto {
   id: string;
@@ -131,7 +132,7 @@ export async function importConnectWiseCompany(
       accent: palette.accentHex,
       text: initials(company.name),
     },
-    supportPhone: company.phoneNumber || null,
+    supportPhone: SUPPORT_PHONE,
     supportHours: 'Contact boxIT for support',
     connectWiseCompanyId: company.id,
     ninjaOneOrganizationId: null,

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { ACTION_DEFS } from '@/data/actions';
 import type { AppDb } from './client';
 import { PRODUCT_CATALOG } from './product-catalog';
+import { SUPPORT_PHONE } from '../support';
 import {
   actionDefs,
   adminUserClientAccess,
@@ -30,17 +31,17 @@ export const SEED_TENANTS: SeedTenant[] = [
   {
     slug: 'brightwater', name: 'Brightwater Logistics', vertical: 'Logistics',
     theme: { primary: '245 75% 60%', primaryForeground: '0 0% 100%', accent: '250 65% 55%', accentForeground: '0 0% 100%', ring: '245 75% 60%', sidebarGradient: 'linear-gradient(180deg, #312e81 0%, #1e1b4b 50%, #0f0c29 100%)' },
-    supportPhone: '+1 (888) 247-9100', supportHours: 'Mon–Fri, 7am–7pm PT',
+    supportPhone: SUPPORT_PHONE, supportHours: 'Mon–Fri, 7am–7pm PT',
   },
   {
     slug: 'cedarvine', name: 'Cedar & Vine Hospitality', vertical: 'Hospitality',
     theme: { primary: '32 95% 44%', primaryForeground: '0 0% 100%', accent: '142 71% 27%', accentForeground: '0 0% 100%', ring: '32 95% 44%', sidebarGradient: 'linear-gradient(180deg, #92400e 0%, #78350f 50%, #451a03 100%)' },
-    supportPhone: '+1 (888) 233-8462', supportHours: 'Mon–Sun, 8am–8pm ET',
+    supportPhone: SUPPORT_PHONE, supportHours: 'Mon–Sun, 8am–8pm ET',
   },
   {
     slug: 'northwind', name: 'Northwind Health Partners', vertical: 'Healthcare',
     theme: { primary: '173 80% 40%', primaryForeground: '0 0% 100%', accent: '199 89% 42%', accentForeground: '0 0% 100%', ring: '173 80% 40%', sidebarGradient: 'linear-gradient(180deg, #134e4a 0%, #0f3d3a 50%, #042f2e 100%)' },
-    supportPhone: '+1 (888) 669-7846', supportHours: 'Mon–Fri, 6am–10pm CT',
+    supportPhone: SUPPORT_PHONE, supportHours: 'Mon–Fri, 6am–10pm CT',
   },
 ];
 
